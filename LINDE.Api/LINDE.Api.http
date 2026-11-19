@@ -1,0 +1,140 @@
+### Recorrido completo de LINDE. En Rider, ejecuta las peticiones en orden con el botón verde.
+### Los datos viven en memoria: al reiniciar la API se borran (también los usuarios).
+@api = http://localhost:5080/api
+
+### 0a. Crear la cuenta (CU-01). Es público: no necesita token.
+POST {{api}}/auth/registro
+Content-Type: application/json
+
+{ "nombre": "Mauricio", "apellido": "Urioste", "ci": "7845123", "correo": "admin@linde.bo", "contrasena": "linde2026" }
+
+### 0b. Iniciar sesión. Guarda el token en {{token}} para las demás peticiones.
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "correo": "admin@linde.bo", "contrasena": "linde2026" }
+
+> {% client.global.set("token", response.body.token); %}
+
+### 0c. Usuario de la sesión actual
+GET {{api}}/auth/yo
+Authorization: Bearer {{token}}
+
+### 1. Crear productor (CU-02)
+POST {{api}}/productores
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{ "nombre": "Juan", "apellido": "Pérez", "ci": "7845123" }
+
+### 2. Crear predio de 100 ha (CU-03)
+POST {{api}}/predios
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{ "productorId": 1, "nombre": "El Algarrobo", "municipio": "San Julián", "superficieDeclaradaHa": 100, "desmonteDeclaradoHa": null }
+
+### 3. Registrar el polígono (CU-04). Longitud primero, latitud después; el último vértice repite el primero.
+PUT {{api}}/predios/1/poligono
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "vertices": [
+    { "lon": -63.0, "lat": -17.5 },
+    { "lon": -62.9906, "lat": -17.5 },
+    { "lon": -62.9906, "lat": -17.491 },
+    { "lon": -63.0, "lat": -17.491 },
+    { "lon": -63.0, "lat": -17.5 }
+  ],
+  "motivo": "Levantamiento inicial"
+}
+
+### 4. Adjuntar el título del INRA (CU-05)
+POST {{api}}/predios/1/documentos
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{ "tipo": "TituloPropiedad", "numero": "T-001", "titularCi": "7845123", "superficieHa": 120 }
+
+### 5. Adjuntar el POP de la ABT (CU-05)
+POST {{api}}/predios/1/documentos
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{ "tipo": "PlanOrdenamientoPredial", "numero": "POP-9", "titularCi": null, "superficieHa": 120 }
+
+### 6. Enviar a revisión (CU-06 y CU-07): Facade + Chain of Responsibility + Strategy + Adapter/Proxy + State
+POST {{api}}/predios/1/enviar
+Authorization: Bearer {{token}}
+
+### 7. Bandeja del verificador (CU-08)
+GET {{api}}/alertas
+Authorization: Bearer {{token}}
+
+### 8. Intentar editar mientras está en revisión: el estado lo rechaza (409)
+PUT {{api}}/predios/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{ "productorId": 1, "nombre": "Otro nombre", "municipio": "San Julián", "superficieDeclaradaHa": 100, "desmonteDeclaradoHa": null }
+
+### 9. El verificador aprueba (CU-09). Solo Verificador o Administrador. Si el predio quedó aprobado en el paso 6, devuelve 409.
+POST {{api}}/predios/1/aprobar
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{ "comentario": "Revisada la imagen satelital: degradación, no desmonte." }
+
+### 10. Generar el expediente (CU-10): Builder
+POST {{api}}/expedientes/predio/1
+Authorization: Bearer {{token}}
+
+### 11. Expediente en GeoJSON para el comprador
+GET {{api}}/expedientes/LINDE-2026-000001/geojson
+Authorization: Bearer {{token}}
+
+### 12. Importar un polígono desde un archivo (Factory Method). Crea antes un segundo predio.
+POST {{api}}/predios
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{ "productorId": 1, "nombre": "Vecino", "municipio": "San Julián", "superficieDeclaradaHa": 30, "desmonteDeclaradoHa": null }
+
+###
+POST {{api}}/predios/2/poligono/importar
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=limite
+
+--limite
+Content-Disposition: form-data; name="archivo"; filename="vecino.kml"
+Content-Type: application/vnd.google-earth.kml+xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Placemark><Polygon><outerBoundaryIs><LinearRing><coordinates>
+-62.9920,-17.4950,0 -62.9860,-17.4950,0 -62.9860,-17.4900,0 -62.9920,-17.4900,0 -62.9920,-17.4950,0
+</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark></kml>
+--limite--
+
+### 13. Corregir un vértice: crea la versión 2 y conserva la 1 (Prototype)
+PUT {{api}}/predios/2/poligono/vertices/0
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{ "lon": -62.9925, "lat": -17.4952, "motivo": "Ajuste con GPS" }
+
+###
+GET {{api}}/predios/2/poligono/historial
+Authorization: Bearer {{token}}
+
+### 14. Enviar el predio 2: se superpone con el 1 y la capa geométrica corta la cadena
+POST {{api}}/predios/2/enviar
+Authorization: Bearer {{token}}
+
+### 15. Parámetros (CU-12): Singleton + Decorator
+GET {{api}}/parametros
+Authorization: Bearer {{token}}
+
+### 16. Bitácora de auditoría (Decorator)
+GET {{api}}/bitacora
+Authorization: Bearer {{token}}

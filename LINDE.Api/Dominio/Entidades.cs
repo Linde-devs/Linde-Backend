@@ -1,0 +1,102 @@
+namespace LINDE.Api.Dominio;
+
+/// <summary>Toda entidad guardada en un repositorio tiene un identificador numérico.</summary>
+public interface IEntidad
+{
+    int Id { get; set; }
+}
+
+/// <summary>Coordenada geográfica en grados (WGS84). Igual que en GeoJSON: longitud primero, latitud después.</summary>
+public readonly record struct Coordenada(double Lon, double Lat);
+
+public class Productor : IEntidad
+{
+    public int Id { get; set; }
+    public string Nombre { get; set; } = "";
+    public string Apellido { get; set; } = "";
+    public string Ci { get; set; } = "";
+}
+
+public class Documento : IEntidad
+{
+    public int Id { get; set; }
+    public int PredioId { get; set; }
+    public TipoDocumento Tipo { get; set; }
+    public string? Numero { get; set; }
+
+    /// <summary>CI del titular que figura en el documento (se usa en la capa de titularidad).</summary>
+    public string? TitularCi { get; set; }
+
+    /// <summary>Superficie titulada o autorizada, en hectáreas.</summary>
+    public double? SuperficieHa { get; set; }
+
+    public DateTime FechaRegistro { get; set; } = DateTime.UtcNow;
+}
+
+public class Alerta : IEntidad
+{
+    public int Id { get; set; }
+    public int PredioId { get; set; }
+    public CapaValidacion Capa { get; set; }
+    public PrioridadAlerta Prioridad { get; set; }
+    public string Mensaje { get; set; } = "";
+    public DateTime Fecha { get; set; } = DateTime.UtcNow;
+    public bool Resuelta { get; set; }
+}
+
+/// <summary>Resultado de una sola capa de validación.</summary>
+public class ResultadoCapa
+{
+    public CapaValidacion Capa { get; init; }
+    public EstadoCapa Estado { get; init; }
+    public string Mensaje { get; init; } = "";
+
+    /// <summary>Solo para la capa de uso permitido.</summary>
+    public EstadoUsoSuelo? UsoSuelo { get; init; }
+}
+
+/// <summary>Resultado completo de un envío a revisión: una entrada por cada capa que se ejecutó.</summary>
+public class ResultadoValidacion : IEntidad
+{
+    public int Id { get; set; }
+    public int PredioId { get; set; }
+    public int VersionPoligono { get; set; }
+    public DateTime Fecha { get; set; } = DateTime.UtcNow;
+    public List<ResultadoCapa> Capas { get; set; } = new();
+
+    /// <summary>True si la capa geométrica detuvo la cadena.</summary>
+    public bool Cortado { get; set; }
+
+    public EstadoExpediente EstadoResultante { get; set; }
+    public string Mensaje { get; set; } = "";
+}
+
+/// <summary>Registro de auditoría: quién hizo qué, cuándo y con qué valores anteriores.</summary>
+public class RegistroBitacora : IEntidad
+{
+    public int Id { get; set; }
+    public DateTime Fecha { get; set; } = DateTime.UtcNow;
+    public string Usuario { get; set; } = "";
+    public string Operacion { get; set; } = "";
+    public string Entidad { get; set; } = "";
+    public string? EntidadId { get; set; }
+    public string? ValoresAnteriores { get; set; }
+    public string Resultado { get; set; } = "";
+}
+
+/// <summary>Parámetros del sistema (CU-12). Ningún umbral queda fijo en el código.</summary>
+public sealed record Parametros
+{
+    public DateOnly FechaCorte { get; init; } = new(2020, 12, 31);
+    public double UmbralPoligonoObligatorioHa { get; init; } = 4;
+    public double ToleranciaSuperposicionM2 { get; init; } = 100;
+    public double ToleranciaSuperposicionPorcentaje { get; init; } = 0.1;
+
+    /// <summary>ERS RF-06: la superposición bloquea el envío. Decisión pendiente; se puede cambiar sin tocar el código.</summary>
+    public bool SuperposicionBloquea { get; init; } = true;
+
+    public double Ley741DesmonteMaximoHa { get; init; } = 20;
+    public double Ley741PredioMaximoHa { get; init; } = 50;
+    public double PerdidaCoberturaAlertaPorcentaje { get; init; } = 10;
+    public double BufferMetros { get; init; } = 128;
+}
