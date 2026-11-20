@@ -1,4 +1,5 @@
 using System.Text;
+using LINDE.Api.Autenticacion;
 using LINDE.Api.Configuracion;
 using LINDE.Api.Datos;
 using LINDE.Api.Dominio;
@@ -81,7 +82,7 @@ public class PatronesCreacionalesTests
         .ConValidacion(new ResultadoValidacion { PredioId = predio.Id });
 
     [Fact]
-    public void Builder_NoGeneraElExpedienteDeUnPredioNoAprobado()
+    public void Builder_NoGeneraElExpedienteDeUnPredioQueNoSeEnvio()
     {
         var predio = Ayudas.Predio();
         Assert.Throws<OperacionNoPermitidaException>(() => BuilderCompleto(predio).Construir("LINDE-1"));
@@ -103,11 +104,45 @@ public class PatronesCreacionalesTests
         var predio = Ayudas.Predio();
         predio.EnviarARevision(hayAlertas: false);
 
-        var expediente = BuilderCompleto(predio).ConResolucionVerificador(null).Construir("LINDE-2026-000001");
+        var expediente = BuilderCompleto(predio).Construir("LINDE-2026-000001");
 
         Assert.Equal("LINDE-2026-000001", expediente.Codigo);
         Assert.Equal("Juan Pérez", expediente.Productor);
         Assert.InRange(expediente.AreaPoligonoHa, 95, 105);
+    }
+
+    [Fact]
+    public void Builder_ElPredioConAlertasTambienTieneExpedienteYLasMuestra()
+    {
+        var predio = Ayudas.Predio();
+        predio.EnviarARevision(hayAlertas: true);
+        var alertas = new[]
+        {
+            new Alerta { PredioId = predio.Id, Capa = CapaValidacion.UsoSuelo, Prioridad = PrioridadAlerta.Media, Mensaje = "Cambio de cobertura" },
+            new Alerta { PredioId = predio.Id, Capa = CapaValidacion.Titularidad, Prioridad = PrioridadAlerta.Alta, Mensaje = "Se superpone 500 m²" }
+        };
+
+        var expediente = BuilderCompleto(predio).ConAlertas(alertas).Construir("LINDE-2026-000001");
+
+        Assert.Equal(EstadoInforme.ConAlertas, expediente.Estado);
+        Assert.Equal(2, expediente.Alertas.Count);
+        Assert.Equal(PrioridadAlerta.Alta, expediente.Alertas[0].Prioridad);
+    }
+
+    [Fact]
+    public void Expediente_LaConsultaPublicaEnmascaraElCi()
+    {
+        var repo = new RepositorioMemoria<Expediente>();
+        repo.Agregar(new Expediente { Codigo = "LINDE-2026-000001", CiProductor = "7845123", Productor = "Juan Pérez" });
+        var servicio = new ServicioExpedientes(new RepositorioMemoria<Predio>(), new RepositorioMemoria<Productor>(),
+            new RepositorioMemoria<Poligono>(), new RepositorioMemoria<Documento>(), new RepositorioMemoria<ResultadoValidacion>(),
+            repo, new RepositorioMemoria<Alerta>(), new ControlAcceso(new UsuarioFijo()));
+
+        var publico = servicio.ConsultarPublico("linde-2026-000001");
+
+        Assert.Equal("78***23", publico.CiProductor);
+        Assert.Equal("7845123", repo.Listar(_ => true).Single().CiProductor);
+        Assert.Throws<RecursoNoEncontradoException>(() => servicio.ConsultarPublico("LINDE-2026-999999"));
     }
 
     // ---------- Singleton por contenedor: parámetros ----------

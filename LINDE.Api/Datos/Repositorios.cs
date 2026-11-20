@@ -1,20 +1,24 @@
+using System.Linq.Expressions;
 using LINDE.Api.Dominio;
 
 namespace LINDE.Api.Datos;
 
 /// <summary>
-/// Acceso a datos. Por ahora los datos viven en listas en memoria; cuando exista PostgreSQL + PostGIS
-/// se reemplaza esta implementación por una con EF Core sin cambiar los servicios.
+/// Acceso a datos. Hay dos implementaciones con la misma interfaz: RepositorioEf (PostgreSQL + PostGIS)
+/// y RepositorioMemoria (listas, para las pruebas). Los servicios no saben cuál reciben.
+/// El filtro es una expresión y no una función: así EF Core lo traduce a SQL y la base filtra,
+/// en lugar de traer la tabla completa a memoria.
 /// </summary>
 public interface IRepositorio<T> where T : class, IEntidad
 {
     T? Obtener(int id);
-    IReadOnlyList<T> Listar(Func<T, bool>? filtro = null);
+    IReadOnlyList<T> Listar(Expression<Func<T, bool>>? filtro = null);
     T Agregar(T entidad);
     void Actualizar(T entidad);
     bool Eliminar(int id);
 }
 
+/// <summary>Datos en listas en memoria. Lo usan las pruebas automáticas y "Datos:Proveedor" = "Memoria".</summary>
 public class RepositorioMemoria<T> : IRepositorio<T> where T : class, IEntidad
 {
     private readonly List<T> _datos = new();
@@ -26,9 +30,10 @@ public class RepositorioMemoria<T> : IRepositorio<T> where T : class, IEntidad
         lock (_candado) return _datos.FirstOrDefault(e => e.Id == id);
     }
 
-    public IReadOnlyList<T> Listar(Func<T, bool>? filtro = null)
+    public IReadOnlyList<T> Listar(Expression<Func<T, bool>>? filtro = null)
     {
-        lock (_candado) return (filtro is null ? _datos : _datos.Where(filtro)).ToList();
+        var condicion = filtro?.Compile();
+        lock (_candado) return (condicion is null ? _datos : _datos.Where(condicion)).ToList();
     }
 
     public T Agregar(T entidad)

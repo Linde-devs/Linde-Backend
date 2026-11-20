@@ -18,6 +18,11 @@ builder.Services.AddCors(o => o.AddPolicy("Frontend", politica => politica
 
 var app = builder.Build();
 
+// Crea o actualiza las tablas en PostgreSQL (solo en desarrollo) y luego las cuentas de la sección
+// CuentasIniciales: el administrador inicial.
+app.AplicarMigraciones();
+app.CrearCuentasIniciales();
+
 app.UseMiddleware<ManejoErrores>();
 app.UseCors("Frontend");
 app.UseAuthentication();

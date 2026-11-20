@@ -83,7 +83,7 @@ public class PatronesComportamientoTests
     // ---------- State ----------
 
     [Fact]
-    public void State_SinAlertasPasaAAprobadoYConAlertasAEnRevision()
+    public void State_SinAlertasPasaAAprobadoYConAlertasAConAlertas()
     {
         var limpio = Ayudas.Predio();
         limpio.EnviarARevision(hayAlertas: false);
@@ -91,33 +91,27 @@ public class PatronesComportamientoTests
 
         var conAlertas = Ayudas.Predio();
         conAlertas.EnviarARevision(hayAlertas: true);
-        Assert.Equal(EstadoExpediente.EnRevision, conAlertas.Estado);
+        Assert.Equal(EstadoExpediente.ConAlertas, conAlertas.Estado);
     }
 
     [Fact]
-    public void State_EnRevisionSoloActuaElVerificador()
+    public void State_ConAlertasSeCorrigeSeReenviaYPermiteElExpediente()
     {
         var predio = Ayudas.Predio();
         predio.EnviarARevision(hayAlertas: true);
 
-        Assert.Throws<OperacionNoPermitidaException>(predio.VerificarEdicion);
-        Assert.Throws<OperacionNoPermitidaException>(predio.VerificarGeneracionExpediente);
-        Assert.Throws<DatosInvalidosException>(() => predio.Observar(" "));
-
-        predio.Observar("Revisar el límite norte");
-        Assert.Equal(EstadoExpediente.Observado, predio.Estado);
-    }
-
-    [Fact]
-    public void State_ObservadoSePuedeCorregirYReenviar()
-    {
-        var predio = Ayudas.Predio();
-        predio.EnviarARevision(hayAlertas: true);
-        predio.Observar("Falta el título");
-
+        // Nadie lo aprueba en el sistema: el productor puede generar el expediente con alertas, o corregir y reenviar.
+        predio.VerificarGeneracionExpediente();
         predio.VerificarEdicion();
         predio.EnviarARevision(hayAlertas: false);
         Assert.Equal(EstadoExpediente.Aprobado, predio.Estado);
+    }
+
+    [Fact]
+    public void State_RegistradoNoPermiteGenerarElExpediente()
+    {
+        var predio = Ayudas.Predio();
+        Assert.Throws<OperacionNoPermitidaException>(predio.VerificarGeneracionExpediente);
     }
 
     [Fact]
@@ -129,7 +123,6 @@ public class PatronesComportamientoTests
         predio.VerificarGeneracionExpediente();
         Assert.Throws<OperacionNoPermitidaException>(predio.VerificarEdicion);
         Assert.Throws<OperacionNoPermitidaException>(predio.VerificarEnvio);
-        Assert.Throws<OperacionNoPermitidaException>(() => predio.Aprobar(null));
     }
 
     // ---------- Strategy ----------

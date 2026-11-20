@@ -13,28 +13,33 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace LINDE.Api.Controllers;
 
-/// <summary>CU-02. Gestionar productores.</summary>
+/// <summary>CU-02. Gestionar productores. Solo el administrador.</summary>
 [ApiController]
 [Route("api/productores")]
+[Authorize(Roles = Roles.Administrador)]
 public class ProductoresController(ServicioProductores servicio) : ControllerBase
 {
     [HttpGet]
-    public IReadOnlyList<Productor> Listar() => servicio.Listar();
+    public IReadOnlyList<ProductorVista> Listar() => servicio.Listar();
 
     [HttpGet("{id:int}")]
-    public Productor Obtener(int id) => servicio.Obtener(id);
+    public ProductorVista Obtener(int id) => servicio.Obtener(id);
 
+    /// <summary>El administrador registra un productor con su cuenta de acceso.</summary>
     [HttpPost]
-    public ActionResult<Productor> Crear(ProductorDto dto)
+    [Authorize(Roles = Roles.Administrador)]
+    public ActionResult<ProductorVista> Crear(RegistroProductorDto dto)
     {
-        var productor = servicio.Crear(dto);
+        var productor = servicio.Registrar(dto);
         return CreatedAtAction(nameof(Obtener), new { id = productor.Id }, productor);
     }
 
     [HttpPut("{id:int}")]
-    public Productor Actualizar(int id, ProductorDto dto) => servicio.Actualizar(id, dto);
+    [Authorize(Roles = Roles.Administrador)]
+    public ProductorVista Actualizar(int id, ProductorDto dto) => servicio.Actualizar(id, dto);
 
     [HttpDelete("{id:int}")]
+    [Authorize(Roles = Roles.Administrador)]
     public IActionResult Eliminar(int id)
     {
         servicio.Eliminar(id);
@@ -42,28 +47,32 @@ public class ProductoresController(ServicioProductores servicio) : ControllerBas
     }
 }
 
-/// <summary>CU-03 (gestionar predios), CU-06 (enviar a revisión) y CU-09 (resolver casos en revisión).</summary>
+/// <summary>CU-03 (gestionar predios), CU-06 (enviar a revisión) y CU-07 (validar que tenga todo lo necesario).
+/// El productor solo ve y modifica sus predios (lo controla el servicio, RNF-03).</summary>
 [ApiController]
 [Route("api/predios")]
-public class PrediosController(IServicioPredios predios, IServicioValidacionPredios validacion) : ControllerBase
+public class PrediosController(IServicioPredios predios, IServicioValidacionPredios validacion, VistasPredio vistas) : ControllerBase
 {
     [HttpGet]
-    public IReadOnlyList<Predio> Listar([FromQuery] int? productorId) => predios.Listar(productorId);
+    public IEnumerable<PredioVista> Listar([FromQuery] int? productorId) => predios.Listar(productorId).Select(vistas.Crear);
 
     [HttpGet("{id:int}")]
-    public Predio Obtener(int id) => predios.Obtener(id);
+    public PredioVista Obtener(int id) => vistas.Crear(predios.Obtener(id));
 
     [HttpPost]
-    public ActionResult<Predio> Crear(PredioDto dto)
+    [Authorize(Roles = Roles.ProductorOAdministrador)]
+    public ActionResult<PredioVista> Crear(PredioDto dto)
     {
         var predio = predios.Crear(dto);
-        return CreatedAtAction(nameof(Obtener), new { id = predio.Id }, predio);
+        return CreatedAtAction(nameof(Obtener), new { id = predio.Id }, vistas.Crear(predio));
     }
 
     [HttpPut("{id:int}")]
-    public Predio Actualizar(int id, PredioDto dto) => predios.Actualizar(id, dto);
+    [Authorize(Roles = Roles.ProductorOAdministrador)]
+    public PredioVista Actualizar(int id, PredioDto dto) => vistas.Crear(predios.Actualizar(id, dto));
 
     [HttpDelete("{id:int}")]
+    [Authorize(Roles = Roles.ProductorOAdministrador)]
     public IActionResult Eliminar(int id)
     {
         predios.Eliminar(id);
@@ -72,21 +81,18 @@ public class PrediosController(IServicioPredios predios, IServicioValidacionPred
 
     /// <summary>Facade: una sola llamada ejecuta las cuatro capas, genera alertas y cambia el estado.</summary>
     [HttpPost("{id:int}/enviar")]
+    [Authorize(Roles = Roles.ProductorOAdministrador)]
     public Task<ResultadoValidacion> Enviar(int id, CancellationToken ct) => validacion.EnviarARevisionAsync(id, ct);
+
+    /// <summary>CU-07. Validar predio: lista de requisitos para enviarlo, cumplidos o pendientes. No guarda nada.</summary>
+    [HttpGet("{id:int}/requisitos")]
+    public RevisionRequisitos Requisitos(int id) => validacion.RevisarRequisitos(id);
 
     [HttpGet("{id:int}/validaciones")]
     public IReadOnlyList<ResultadoValidacion> Validaciones(int id) => validacion.Historial(id);
-
-    [HttpPost("{id:int}/aprobar")]
-    [Authorize(Roles = Roles.VerificadorOAdministrador)]
-    public Predio Aprobar(int id, ResolucionDto dto) => predios.Aprobar(id, dto.Comentario);
-
-    [HttpPost("{id:int}/observar")]
-    [Authorize(Roles = Roles.VerificadorOAdministrador)]
-    public Predio Observar(int id, ResolucionDto dto) => predios.Observar(id, dto.Comentario ?? "");
 }
 
-/// <summary>CU-04. Gestionar polígonos.</summary>
+/// <summary>CU-04. Gestionar polígonos. Una geometría inválida se rechaza al cargarla (RF-03).</summary>
 [ApiController]
 [Route("api/predios/{predioId:int}/poligono")]
 public class PoligonosController(IServicioPoligonos servicio) : ControllerBase
@@ -99,15 +105,18 @@ public class PoligonosController(IServicioPoligonos servicio) : ControllerBase
     public IEnumerable<PoligonoVista> Historial(int predioId) => servicio.Historial(predioId).Select(Vista);
 
     [HttpPut]
+    [Authorize(Roles = Roles.ProductorOAdministrador)]
     public PoligonoVista Registrar(int predioId, VerticesDto dto) =>
         Vista(servicio.Registrar(predioId, dto.Vertices.Select(v => new Coordenada(v.Lon, v.Lat)).ToList(), dto.Motivo));
 
     [HttpPut("vertices/{indice:int}")]
+    [Authorize(Roles = Roles.ProductorOAdministrador)]
     public PoligonoVista EditarVertice(int predioId, int indice, EditarVerticeDto dto) =>
         Vista(servicio.EditarVertice(predioId, indice, new Coordenada(dto.Lon, dto.Lat), dto.Motivo));
 
     /// <summary>Acepta .geojson, .json y .kml. La fábrica elige el lector según la extensión.</summary>
     [HttpPost("importar")]
+    [Authorize(Roles = Roles.ProductorOAdministrador)]
     [Consumes("multipart/form-data")]
     public PoligonoVista Importar(int predioId, IFormFile archivo, [FromForm] string? motivo)
     {
@@ -147,19 +156,29 @@ public class DocumentosController(IServicioDocumentos servicio) : ControllerBase
     }
 }
 
-/// <summary>CU-08. Gestionar alertas (bandeja del verificador, ordenada por prioridad).</summary>
+/// <summary>
+/// CU-08. Alertas que generaron las validaciones, ordenadas por prioridad (RF-13).
+/// El productor ve las de sus predios; el administrador, todas.
+/// </summary>
 [ApiController]
 [Route("api/alertas")]
-public class AlertasController(IRepositorio<Alerta> alertas) : ControllerBase
+public class AlertasController(IRepositorio<Alerta> alertas, IRepositorio<Predio> predios, ControlAcceso acceso) : ControllerBase
 {
     [HttpGet]
-    public IEnumerable<Alerta> Listar([FromQuery] bool soloPendientes = true) =>
-        alertas.Listar(a => !soloPendientes || !a.Resuelta)
+    public IEnumerable<AlertaVista> Listar([FromQuery] int? predioId, [FromQuery] bool soloPendientes = true)
+    {
+        var visibles = predios.Listar(p => acceso.ProductorPropio == null || p.ProductorId == acceso.ProductorPropio)
+            .ToDictionary(p => p.Id, p => p.Nombre);
+        var ids = visibles.Keys.ToList();
+
+        return alertas.Listar(a => ids.Contains(a.PredioId) && (predioId == null || a.PredioId == predioId) && (!soloPendientes || !a.Resuelta))
             .OrderBy(a => a.Prioridad)
-            .ThenBy(a => a.Fecha);
+            .ThenByDescending(a => a.Fecha)
+            .Select(a => new AlertaVista(a.Id, a.PredioId, visibles[a.PredioId], a.Capa, a.Prioridad, a.Mensaje, a.Fecha, a.Resuelta));
+    }
 }
 
-/// <summary>CU-10. Gestionar expedientes.</summary>
+/// <summary>CU-10. Gestionar expedientes: el productor genera el de su predio, aprobado o con alertas.</summary>
 [ApiController]
 [Route("api/expedientes")]
 public class ExpedientesController(ServicioExpedientes servicio) : ControllerBase
@@ -176,6 +195,19 @@ public class ExpedientesController(ServicioExpedientes servicio) : ControllerBas
     [HttpGet("{codigo}/geojson")]
     public ContentResult GeoJson(string codigo) =>
         Content(FormatosExpediente.AGeoJson(servicio.Obtener(codigo)), "application/geo+json");
+}
+
+/// <summary>
+/// RF-15. Consulta pública del expediente por su código. No necesita cuenta: la usan el técnico o el SENASAG
+/// para comprobar el expediente que les muestra el productor.
+/// </summary>
+[ApiController]
+[Route("api/consulta")]
+[AllowAnonymous]
+public class ConsultaController(ServicioExpedientes servicio) : ControllerBase
+{
+    [HttpGet("{codigo}")]
+    public Expediente Obtener(string codigo) => servicio.ConsultarPublico(codigo);
 }
 
 /// <summary>CU-12. Gestionar parámetros.</summary>
@@ -205,13 +237,23 @@ public class BitacoraController(IBitacora bitacora) : ControllerBase
 /// <summary>CU-01. Registro, inicio de sesión y datos de la sesión actual.</summary>
 [ApiController]
 [Route("api/auth")]
-public class AuthController(ServicioAutenticacion servicio) : ControllerBase
+public class AuthController(ServicioAutenticacion servicio, ServicioProductores productores) : ControllerBase
 {
+    /// <summary>RF-01. Registro público: crea el productor y su cuenta con rol Productor.</summary>
     [HttpPost("registro")]
     [AllowAnonymous]
-    public ActionResult<UsuarioDto> Registrar(RegistroDto dto)
+    public ActionResult<ProductorVista> Registrar(RegistroProductorDto dto)
     {
-        var usuario = servicio.Registrar(dto);
+        var productor = productores.Registrar(dto);
+        return CreatedAtAction(nameof(Yo), null, productor);
+    }
+
+    /// <summary>Registro del administrador (Sprint 1). Solo otro administrador puede crearlo.</summary>
+    [HttpPost("administradores")]
+    [Authorize(Roles = Roles.Administrador)]
+    public ActionResult<UsuarioDto> RegistrarAdministrador(RegistroAdministradorDto dto)
+    {
+        var usuario = servicio.RegistrarAdministrador(dto);
         return CreatedAtAction(nameof(Yo), null, usuario);
     }
 

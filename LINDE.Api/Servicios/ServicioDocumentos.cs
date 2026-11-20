@@ -1,4 +1,5 @@
 using LINDE.Api.Auditoria;
+using LINDE.Api.Autenticacion;
 using LINDE.Api.Contratos;
 using LINDE.Api.Datos;
 using LINDE.Api.Dominio;
@@ -13,13 +14,17 @@ public interface IServicioDocumentos
     void Eliminar(int id);
 }
 
-public class ServicioDocumentos(IRepositorio<Predio> predios, IRepositorio<Documento> documentos) : IServicioDocumentos
+public class ServicioDocumentos(IRepositorio<Predio> predios, IRepositorio<Documento> documentos, ControlAcceso acceso) : IServicioDocumentos
 {
-    public IReadOnlyList<Documento> Listar(int predioId) => documentos.Listar(d => d.PredioId == predioId);
+    public IReadOnlyList<Documento> Listar(int predioId)
+    {
+        PredioAccesible(predioId);
+        return documentos.Listar(d => d.PredioId == predioId);
+    }
 
     public Documento Agregar(int predioId, DocumentoDto dto)
     {
-        var predio = predios.Obtener(predioId) ?? throw new RecursoNoEncontradoException($"No existe el predio {predioId}.");
+        var predio = PredioAccesible(predioId);
         predio.VerificarEdicion();
 
         if (dto.SuperficieHa is <= 0)
@@ -38,8 +43,15 @@ public class ServicioDocumentos(IRepositorio<Predio> predios, IRepositorio<Docum
     public void Eliminar(int id)
     {
         var documento = documentos.Obtener(id) ?? throw new RecursoNoEncontradoException($"No existe el documento {id}.");
-        predios.Obtener(documento.PredioId)?.VerificarEdicion();
+        PredioAccesible(documento.PredioId).VerificarEdicion();
         documentos.Eliminar(id);
+    }
+
+    private Predio PredioAccesible(int predioId)
+    {
+        var predio = predios.Obtener(predioId) ?? throw new RecursoNoEncontradoException($"No existe el predio {predioId}.");
+        acceso.VerificarPredio(predio);
+        return predio;
     }
 }
 

@@ -4,8 +4,7 @@ namespace LINDE.Api.Dominio;
 public enum EstadoExpediente
 {
     Registrado,
-    EnRevision,
-    Observado,
+    ConAlertas,
     Aprobado
 }
 
@@ -25,7 +24,7 @@ public enum CapaValidacion
     Cobertura
 }
 
-/// <summary>Conforme: sin problemas. Alerta: pasa al verificador. Rechazado: el predio vuelve al productor.</summary>
+/// <summary>Conforme: sin problemas. Alerta: el predio queda con alertas (informativas). Rechazado: el predio vuelve al productor.</summary>
 public enum EstadoCapa
 {
     Conforme,

@@ -3,7 +3,6 @@ using LINDE.Api.Datos;
 using LINDE.Api.Dominio;
 using LINDE.Api.Geometria;
 using LINDE.Api.Validacion.UsoSuelo;
-using NetTopologySuite.Operation.Valid;
 
 namespace LINDE.Api.Validacion;
 
@@ -12,7 +11,7 @@ namespace LINDE.Api.Validacion;
 /// obligatorio para predios de más de 4 ha, y sin superposición con otros predios.
 /// Es la única capa que puede cortar la cadena.
 /// </summary>
-public class ValidadorGeometrico(IRepositorio<Poligono> poligonos) : ValidadorCapa
+public class ValidadorGeometrico(IRepositorio<Poligono> poligonos, IRepositorio<Predio>? predios = null) : ValidadorCapa
 {
     public override CapaValidacion Capa => CapaValidacion.Geometrica;
     public override int Orden => 1;
@@ -37,24 +36,9 @@ public class ValidadorGeometrico(IRepositorio<Poligono> poligonos) : ValidadorCa
             return Conforme($"Se registró un punto, suficiente para predios de hasta {p.UmbralPoligonoObligatorioHa:0.##} ha.");
         }
 
-        if (v.Count < 4)
-            return Rechazado("El polígono necesita al menos 3 vértices distintos.");
-
-        if (v[0] != v[^1])
-            return Rechazado("El polígono no está cerrado: el último vértice debe repetir el primero.");
-
-        var sinCierre = v.Take(v.Count - 1).ToList();
-        if (sinCierre.Distinct().Count() != sinCierre.Count)
-            return Rechazado("El polígono tiene vértices duplicados.");
-
-        var validacion = new IsValidOp(Geometrias.Crear(v));
-        if (!validacion.IsValid)
-        {
-            var error = validacion.ValidationError;
-            return Rechazado(error.ErrorType is TopologyValidationErrors.SelfIntersection or TopologyValidationErrors.RingSelfIntersection
-                ? "Los lados del polígono se cruzan entre sí."
-                : $"La geometría no es válida ({error.Message}).");
-        }
+        // Las mismas reglas que se aplican al cargar el polígono (RF-03), por si se registró antes de esa revisión.
+        if (RevisionGeometrica.Revisar(v) is { } problema)
+            return Rechazado(problema.Mensaje);
 
         var centro = Geometrias.Centro(v);
         var propio = Geometrias.CrearProyectado(v, centro);
@@ -64,12 +48,12 @@ public class ValidadorGeometrico(IRepositorio<Poligono> poligonos) : ValidadorCa
         if (peor is { } s)
         {
             var porcentaje = s.AreaM2 / propio.Area * 100;
-            var detalle = $"Se superpone {s.AreaM2:0} m² ({porcentaje:0.##} %) con el predio {s.PredioId}.";
+            var detalle = $"Se superpone {s.AreaM2:0} m² ({porcentaje:0.##} %) con el predio {s.PredioId}{NombrePredio(s.PredioId)}.";
 
             if (s.AreaM2 > p.ToleranciaSuperposicionM2 || porcentaje > p.ToleranciaSuperposicionPorcentaje)
                 return p.SuperposicionBloquea
                     ? Rechazado($"{detalle} Supera la tolerancia de {p.ToleranciaSuperposicionM2:0} m² o {p.ToleranciaSuperposicionPorcentaje:0.##} %.")
-                    : ConAlerta($"{detalle} Supera la tolerancia; un verificador debe revisarlo.");
+                    : ConAlerta($"{detalle} Supera la tolerancia; conviene que un técnico lo revise.");
 
             return Conforme($"Polígono válido de {ctx.AreaPoligonoHa:0.##} ha. {detalle} Está dentro de la tolerancia (error de GPS en el borde).");
         }
@@ -77,18 +61,31 @@ public class ValidadorGeometrico(IRepositorio<Poligono> poligonos) : ValidadorCa
         return Conforme($"Polígono válido de {ctx.AreaPoligonoHa:0.##} ha, sin superposiciones.");
     }
 
+    /// <summary>RF-06 pide mostrar con qué predio se superpone: se agrega su nombre si se conoce.</summary>
+    private string NombrePredio(int predioId) =>
+        predios?.Obtener(predioId) is { } otro ? $" ({otro.Nombre})" : "";
+
     private (int PredioId, double AreaM2)? BuscarMayorSuperposicion(ContextoValidacion ctx, NetTopologySuite.Geometries.Polygon propio, Coordenada centro)
     {
         (int PredioId, double AreaM2)? peor = null;
 
-        var otros = poligonos.Listar(o => o.Vigente && o.PredioId != ctx.Predio.Id && o.Vertices.Count >= 4 && o.Vertices[0] == o.Vertices[^1]);
+        // Con PostgreSQL esta consulta se traduce a ST_Intersects y usa el índice espacial GiST (RF-06, RNF-02):
+        // la base devuelve solo los polígonos que tocan al del predio, no todos los registrados.
+        // El área superpuesta se calcula después en metros, con la proyección de área equivalente (RNF-09).
+        var geometria = Geometrias.Crear(ctx.Poligono.Vertices);
+        var predioId = ctx.Predio.Id;
+        var otros = poligonos.Listar(o => o.Vigente && o.PredioId != predioId && o.Geometria.Intersects(geometria));
+
         foreach (var otro in otros)
         {
-            var geometria = Geometrias.CrearProyectado(otro.Vertices, centro);
-            if (!geometria.IsValid || !propio.Intersects(geometria))
+            if (otro.EsPunto || RevisionGeometrica.Revisar(otro.Vertices) is not null)
                 continue;
 
-            var area = propio.Intersection(geometria).Area;
+            var proyectado = Geometrias.CrearProyectado(otro.Vertices, centro);
+            if (!propio.Intersects(proyectado))
+                continue;
+
+            var area = propio.Intersection(proyectado).Area;
             if (area > 0 && (peor is null || area > peor.Value.AreaM2))
                 peor = (otro.PredioId, area);
         }
@@ -170,7 +167,7 @@ public class ValidadorCobertura(IProveedorCobertura proveedor) : ValidadorCapa
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return ConAlerta($"No se pudo completar el análisis satelital ({ex.Message}). Un verificador debe revisarlo.");
+            return ConAlerta($"No se pudo completar el análisis satelital ({ex.Message}). Conviene que un técnico lo revise.");
         }
 
         var perdida = r.BosquePorcentajeCorte - r.BosquePorcentajeActual;

@@ -11,8 +11,8 @@ namespace LINDE.Api.Autenticacion;
 public static class Roles
 {
     public const string Administrador = nameof(RolUsuario.Administrador);
-    public const string Verificador = nameof(RolUsuario.Verificador);
-    public const string VerificadorOAdministrador = Verificador + "," + Administrador;
+    public const string Productor = nameof(RolUsuario.Productor);
+    public const string ProductorOAdministrador = Productor + "," + Administrador;
 }
 
 public static class ConfiguracionAutenticacion
@@ -54,7 +54,22 @@ public static class ConfiguracionAutenticacion
         services.AddSingleton<IPasswordHasher<Usuario>, PasswordHasher<Usuario>>();
         services.AddSingleton<IGeneradorToken, GeneradorTokenJwt>();
         services.AddScoped<ServicioAutenticacion>();
+        services.AddScoped<ControlAcceso>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Crea las cuentas de la sección "CuentasIniciales" (el administrador inicial) si no existen.
+    /// Solo se crean una vez: en los arranques siguientes ya existen en la base.
+    /// </summary>
+    public static void CrearCuentasIniciales(this WebApplication app)
+    {
+        var cuentas = app.Configuration.GetSection("CuentasIniciales").Get<List<CuentaInicial>>() ?? [];
+        if (cuentas.Count == 0) return;
+
+        using var alcance = app.Services.CreateScope();
+        var creadas = alcance.ServiceProvider.GetRequiredService<ServicioAutenticacion>().CrearCuentasIniciales(cuentas);
+        app.Logger.LogInformation("Cuentas iniciales creadas: {Creadas}", creadas);
     }
 }

@@ -1,6 +1,8 @@
 using LINDE.Api.Auditoria;
+using LINDE.Api.Autenticacion;
 using LINDE.Api.Datos;
 using LINDE.Api.Dominio;
+using LINDE.Api.Geometria;
 using LINDE.Api.Importacion;
 
 namespace LINDE.Api.Servicios;
@@ -19,20 +21,33 @@ public class ServicioPoligonos(
     IRepositorio<Predio> predios,
     IRepositorio<Poligono> poligonos,
     FabricaLectores fabrica,
-    IUsuarioActual usuario) : IServicioPoligonos
+    IUsuarioActual usuario,
+    ControlAcceso acceso) : IServicioPoligonos
 {
-    public Poligono? ObtenerVigente(int predioId) =>
-        poligonos.Listar(p => p.PredioId == predioId && p.Vigente).FirstOrDefault();
+    public Poligono? ObtenerVigente(int predioId)
+    {
+        PredioAccesible(predioId);
+        return poligonos.Listar(p => p.PredioId == predioId && p.Vigente).FirstOrDefault();
+    }
 
-    public IReadOnlyList<Poligono> Historial(int predioId) =>
-        poligonos.Listar(p => p.PredioId == predioId).OrderByDescending(p => p.Version).ToList();
+    public IReadOnlyList<Poligono> Historial(int predioId)
+    {
+        PredioAccesible(predioId);
+        return poligonos.Listar(p => p.PredioId == predioId).OrderByDescending(p => p.Version).ToList();
+    }
 
     public Poligono Registrar(int predioId, IReadOnlyList<Coordenada> vertices, string? motivo)
     {
         if (vertices.Count == 0)
-            throw new DatosInvalidosException("Envía al menos un vértice.");
+            throw new GeometriaInvalidaException(new ProblemaGeometria(ErrorGeometria.SinVertices, "Envía al menos un vértice."));
 
-        return NuevaVersion(predioId, motivo ?? "Registro del polígono", copia => copia.Vertices = vertices.ToList());
+        // RF-05: un punto se guarda con 6 decimales de latitud y longitud (unos 11 cm).
+        var lista = vertices.Count == 1
+            ? [new Coordenada(Math.Round(vertices[0].Lon, 6), Math.Round(vertices[0].Lat, 6))]
+            : vertices.ToList();
+
+        return NuevaVersion(predioId, motivo ?? (lista.Count == 1 ? "Registro del punto" : "Registro del polígono"),
+            copia => copia.Vertices = lista);
     }
 
     /// <summary>Factory Method: la fábrica entrega el lector según la extensión; aquí no se sabe cuál es.</summary>
@@ -64,13 +79,18 @@ public class ServicioPoligonos(
     /// </summary>
     private Poligono NuevaVersion(int predioId, string motivo, Action<Poligono> modificar)
     {
-        var predio = predios.Obtener(predioId) ?? throw new RecursoNoEncontradoException($"No existe el predio {predioId}.");
+        var predio = PredioAccesible(predioId);
         predio.VerificarEdicion();
 
         var vigente = ObtenerVigente(predioId);
         var nueva = vigente?.Clonar() ?? new Poligono { PredioId = predioId, Version = 0 };
 
         modificar(nueva);
+
+        // RF-03: una geometría inválida se rechaza en el momento de cargarla, indicando el tipo de error.
+        // La superposición con otros predios (RF-06) se revisa al enviar a revisión.
+        if (RevisionGeometrica.Revisar(nueva.Vertices) is { } problema)
+            throw new GeometriaInvalidaException(problema);
         nueva.Version += 1;
         nueva.Fecha = DateTime.UtcNow;
         nueva.Autor = usuario.Nombre;
@@ -84,6 +104,13 @@ public class ServicioPoligonos(
         }
 
         return poligonos.Agregar(nueva);
+    }
+
+    private Predio PredioAccesible(int predioId)
+    {
+        var predio = predios.Obtener(predioId) ?? throw new RecursoNoEncontradoException($"No existe el predio {predioId}.");
+        acceso.VerificarPredio(predio);
+        return predio;
     }
 }
 

@@ -26,6 +26,26 @@ public static class Geometrias
         return FabricaWgs84.CreatePolygon(vertices.Select(v => new Coordinate(v.Lon, v.Lat)).ToArray());
     }
 
+    /// <summary>
+    /// Versión segura de Crear para guardar en la base: si los vértices todavía no forman un polígono
+    /// (por ejemplo, un anillo abierto), devuelve una geometría vacía en lugar de lanzar una excepción.
+    /// La revisión geométrica impide que algo así se guarde; esto solo evita errores al comparar cambios.
+    /// </summary>
+    public static Geometry CrearParaGuardar(IReadOnlyList<Coordenada> vertices)
+    {
+        if (vertices.Count == 1 || (vertices.Count >= 4 && vertices[0] == vertices[^1]))
+            return Crear(vertices);
+        return FabricaWgs84.CreateGeometryCollection();
+    }
+
+    /// <summary>Vértices de una geometría leída de la base: el punto, o el anillo exterior del polígono.</summary>
+    public static List<Coordenada> Vertices(Geometry? geometria) => geometria switch
+    {
+        Point p when !p.IsEmpty => [new Coordenada(p.X, p.Y)],
+        Polygon p when !p.IsEmpty => p.ExteriorRing.Coordinates.Select(c => new Coordenada(c.X, c.Y)).ToList(),
+        _ => []
+    };
+
     /// <summary>Crea el polígono proyectado en metros, centrado en <paramref name="centro"/>.</summary>
     public static Polygon CrearProyectado(IReadOnlyList<Coordenada> vertices, Coordenada centro)
     {

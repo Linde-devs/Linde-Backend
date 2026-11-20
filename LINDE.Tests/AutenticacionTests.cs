@@ -19,7 +19,7 @@ public class AutenticacionTests
         return (servicio, usuarios);
     }
 
-    private static RegistroDto Registro(string correo = "admin@linde.bo", string ci = "7845123") =>
+    private static RegistroAdministradorDto Registro(string correo = "admin@linde.bo", string ci = "7845123") =>
         new("Mauricio", "Urioste", ci, correo, "linde2026");
 
     [Fact]
@@ -27,7 +27,7 @@ public class AutenticacionTests
     {
         var (servicio, usuarios) = Crear();
 
-        servicio.Registrar(Registro());
+        servicio.RegistrarAdministrador(Registro());
 
         var guardado = Assert.Single(usuarios.Listar());
         Assert.False(guardado.ContrasenaHash.Contains("linde2026"));
@@ -38,9 +38,9 @@ public class AutenticacionTests
     public void Registro_RechazaCorreoRepetidoIndicandoElCampo()
     {
         var (servicio, _) = Crear();
-        servicio.Registrar(Registro());
+        servicio.RegistrarAdministrador(Registro());
 
-        var error = Assert.Throws<DatosInvalidosException>(() => servicio.Registrar(Registro(correo: "ADMIN@linde.bo", ci: "1111111")));
+        var error = Assert.Throws<DatosInvalidosException>(() => servicio.RegistrarAdministrador(Registro(correo: "ADMIN@linde.bo", ci: "1111111")));
 
         Assert.Equal("correo", error.Campo);
     }
@@ -49,7 +49,7 @@ public class AutenticacionTests
     public void Login_ConContrasenaIncorrectaFalla()
     {
         var (servicio, _) = Crear();
-        servicio.Registrar(Registro());
+        servicio.RegistrarAdministrador(Registro());
 
         Assert.Throws<CredencialesInvalidasException>(() => servicio.IniciarSesion(new LoginDto("admin@linde.bo", "otra-clave")));
         Assert.Throws<CredencialesInvalidasException>(() => servicio.IniciarSesion(new LoginDto("nadie@linde.bo", "linde2026")));
@@ -59,7 +59,7 @@ public class AutenticacionTests
     public async Task Login_DevuelveUnTokenFirmadoConElRol()
     {
         var (servicio, _) = Crear();
-        servicio.Registrar(Registro());
+        servicio.RegistrarAdministrador(Registro());
 
         var respuesta = servicio.IniciarSesion(new LoginDto("Admin@Linde.bo", "linde2026"));
 
@@ -74,5 +74,22 @@ public class AutenticacionTests
         Assert.Equal("Administrador", validacion.Claims[Claims.Rol]);
         Assert.Equal("admin@linde.bo", validacion.Claims[Claims.Correo]);
         Assert.Equal(RolUsuario.Administrador, respuesta.Usuario.Rol);
+    }
+
+    [Fact]
+    public void CuentasIniciales_SeCreanUnaSolaVez()
+    {
+        var (servicio, usuarios) = Crear();
+        var cuentas = new[]
+        {
+            new CuentaInicial { Nombre = "Administrador", Apellido = "LINDE", Ci = "1000001", Correo = "admin@linde.bo", Contrasena = "Admin-2026", Rol = RolUsuario.Administrador },
+            new CuentaInicial { Nombre = "Soporte", Apellido = "LINDE", Ci = "1000002", Correo = "soporte@linde.bo", Contrasena = "Soporte-2026", Rol = RolUsuario.Administrador }
+        };
+
+        Assert.Equal(2, servicio.CrearCuentasIniciales(cuentas));
+        Assert.Equal(0, servicio.CrearCuentasIniciales(cuentas));
+
+        Assert.Equal(2, usuarios.Listar().Count);
+        Assert.Equal(RolUsuario.Administrador, servicio.IniciarSesion(new LoginDto("soporte@linde.bo", "Soporte-2026")).Usuario.Rol);
     }
 }

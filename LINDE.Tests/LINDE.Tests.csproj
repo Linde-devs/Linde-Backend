@@ -24,4 +24,9 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- Lote de prueba del RF-03: 10 archivos válidos y 10 inválidos. -->
+  <ItemGroup>
+    <None Include="Archivos\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

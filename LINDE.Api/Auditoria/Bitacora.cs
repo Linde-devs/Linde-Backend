@@ -7,14 +7,26 @@ namespace LINDE.Api.Auditoria;
 /// <summary>Usuario que hace la petición, tomado del token de la sesión.</summary>
 public interface IUsuarioActual
 {
+    /// <summary>Para la bitácora se usa el correo, que es único; el nombre puede repetirse.</summary>
     string Nombre { get; }
+
+    RolUsuario? Rol { get; }
+
+    /// <summary>Solo para el rol Productor.</summary>
+    int? ProductorId { get; }
 }
 
-/// <summary>Para la bitácora se usa el correo, que es único; el nombre puede repetirse.</summary>
 public class UsuarioActualHttp(IHttpContextAccessor accesor) : IUsuarioActual
 {
-    public string Nombre =>
-        accesor.HttpContext?.User.FindFirst(LINDE.Api.Autenticacion.Claims.Correo)?.Value ?? "anonimo";
+    public string Nombre => Afirmacion(Autenticacion.Claims.Correo) ?? "anonimo";
+
+    public RolUsuario? Rol =>
+        Enum.TryParse<RolUsuario>(Afirmacion(Autenticacion.Claims.Rol), out var rol) ? rol : null;
+
+    public int? ProductorId =>
+        int.TryParse(Afirmacion(Autenticacion.Claims.ProductorId), out var id) ? id : null;
+
+    private string? Afirmacion(string tipo) => accesor.HttpContext?.User.FindFirst(tipo)?.Value;
 }
 
 public interface IBitacora
@@ -38,8 +50,8 @@ public class Bitacora(IRepositorio<RegistroBitacora> repositorio, IUsuarioActual
 
     public IReadOnlyList<RegistroBitacora> Listar(string? entidad = null, string? entidadId = null) =>
         repositorio.Listar(r =>
-                (entidad is null || r.Entidad == entidad) &&
-                (entidadId is null || r.EntidadId == entidadId))
+                (entidad == null || r.Entidad == entidad) &&
+                (entidadId == null || r.EntidadId == entidadId))
             .OrderByDescending(r => r.Fecha)
             .ToList();
 }

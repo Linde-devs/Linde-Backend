@@ -37,9 +37,12 @@ public static class Ayudas
     };
 }
 
-public class UsuarioFijo(string nombre = "prueba") : IUsuarioActual
+/// <summary>Usuario de prueba. Por defecto es administrador (ve todos los predios).</summary>
+public class UsuarioFijo(string nombre = "prueba", RolUsuario rol = RolUsuario.Administrador, int? productorId = null) : IUsuarioActual
 {
     public string Nombre => nombre;
+    public RolUsuario? Rol => rol;
+    public int? ProductorId => productorId;
 }
 
 /// <summary>Proveedor de cobertura que cuenta cuántas veces se le llamó y devuelve valores fijos.</summary>

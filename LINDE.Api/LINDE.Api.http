@@ -1,40 +1,56 @@
 ### Recorrido completo de LINDE. En Rider, ejecuta las peticiones en orden con el botón verde.
-### Los datos viven en memoria: al reiniciar la API se borran (también los usuarios).
+### Los datos se guardan en PostgreSQL (base "linde"). Las cuentas de appsettings.Development.json
+### (solo el administrador) se crean la primera vez que arranca la API.
+### Si ya ejecutaste este archivo antes, los pasos 0a y 1 responden 400 porque esos productores ya existen.
 @api = http://localhost:5080/api
 
-### 0a. Crear la cuenta (CU-01). Es público: no necesita token.
+### 0a. Registro público de un productor (RF-01). No necesita token. Recibe el código PRD-000001.
 POST {{api}}/auth/registro
 Content-Type: application/json
 
-{ "nombre": "Mauricio", "apellido": "Urioste", "ci": "7845123", "correo": "admin@linde.bo", "contrasena": "linde2026" }
+{ "nombre": "Juan", "apellido": "Pérez", "ci": "7845123", "runpa": null, "telefono": "70012345", "municipio": "San Julián", "correo": "juan@correo.bo", "contrasena": "linde2026" }
 
-### 0b. Iniciar sesión. Guarda el token en {{token}} para las demás peticiones.
+### 0b. El mismo CI otra vez: 400 "Productor ya registrado"
+POST {{api}}/auth/registro
+Content-Type: application/json
+
+{ "nombre": "Juan", "apellido": "Pérez", "ci": "7845123", "runpa": null, "telefono": "70012345", "municipio": "San Julián", "correo": "otro@correo.bo", "contrasena": "linde2026" }
+
+### 0c. Iniciar sesión con el administrador precargado. Guarda el token en {{token}}.
 POST {{api}}/auth/login
 Content-Type: application/json
 
-{ "correo": "admin@linde.bo", "contrasena": "linde2026" }
+{ "correo": "admin@linde.bo", "contrasena": "Admin-2026" }
 
 > {% client.global.set("token", response.body.token); %}
 
-### 0c. Usuario de la sesión actual
+### 0d. Usuario de la sesión actual
 GET {{api}}/auth/yo
 Authorization: Bearer {{token}}
 
-### 1. Crear productor (CU-02)
+### 0e. Registro de otro administrador (Sprint 1). Solo lo puede hacer un administrador.
+POST {{api}}/auth/administradores
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{ "nombre": "Mauricio", "apellido": "Urioste", "ci": "7845100", "correo": "mauricio@linde.bo", "contrasena": "linde2026" }
+
+### 1. El administrador registra un segundo productor con su cuenta (CU-02)
 POST {{api}}/productores
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
-{ "nombre": "Juan", "apellido": "Pérez", "ci": "7845123" }
+{ "nombre": "Ana", "apellido": "Mendoza", "ci": "4567891", "runpa": "RUNPA-123", "telefono": "70022334", "municipio": "Cuatro Cañadas", "correo": "ana@correo.bo", "contrasena": "linde2026" }
 
 ### 2. Crear predio de 100 ha (CU-03)
 POST {{api}}/predios
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
-{ "productorId": 1, "nombre": "El Algarrobo", "municipio": "San Julián", "superficieDeclaradaHa": 100, "desmonteDeclaradoHa": null }
+{ "productorId": 1, "nombre": "El Algarrobo", "municipio": "San Julián", "cultivo": "Soya", "superficieDeclaradaHa": 100, "numeroTituloInra": "T-001", "desmonteDeclaradoHa": null }
 
 ### 3. Registrar el polígono (CU-04). Longitud primero, latitud después; el último vértice repite el primero.
+### Si la geometría no es válida (lados cruzados, anillo abierto, menos de 4 vértices) se rechaza aquí mismo con el tipo de error (RF-03).
 PUT {{api}}/predios/1/poligono
 Content-Type: application/json
 Authorization: Bearer {{token}}
@@ -68,25 +84,22 @@ Authorization: Bearer {{token}}
 POST {{api}}/predios/1/enviar
 Authorization: Bearer {{token}}
 
-### 7. Bandeja del verificador (CU-08)
+### 7. Alertas ordenadas por prioridad (CU-08). El productor solo ve las de sus predios.
 GET {{api}}/alertas
 Authorization: Bearer {{token}}
 
-### 8. Intentar editar mientras está en revisión: el estado lo rechaza (409)
+### 8. Si el paso 6 dejó el predio "Aprobado", editarlo se rechaza (409). Si quedó "Con alertas", se puede corregir y reenviar.
 PUT {{api}}/predios/1
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
-{ "productorId": 1, "nombre": "Otro nombre", "municipio": "San Julián", "superficieDeclaradaHa": 100, "desmonteDeclaradoHa": null }
+{ "productorId": 1, "nombre": "Otro nombre", "municipio": "San Julián", "cultivo": "Soya", "superficieDeclaradaHa": 100, "numeroTituloInra": "T-001", "desmonteDeclaradoHa": null }
 
-### 9. El verificador aprueba (CU-09). Solo Verificador o Administrador. Si el predio quedó aprobado en el paso 6, devuelve 409.
-POST {{api}}/predios/1/aprobar
-Content-Type: application/json
+### 9. Vista para revisión (CU-09): lo que vería un técnico. Usa las mismas consultas: predio, polígono, documentos, validaciones y alertas.
+GET {{api}}/alertas?predioId=1
 Authorization: Bearer {{token}}
 
-{ "comentario": "Revisada la imagen satelital: degradación, no desmonte." }
-
-### 10. Generar el expediente (CU-10): Builder
+### 10. Generar el expediente (CU-10): Builder. Funciona con el predio aprobado o con alertas; el expediente indica su estado.
 POST {{api}}/expedientes/predio/1
 Authorization: Bearer {{token}}
 
@@ -94,12 +107,15 @@ Authorization: Bearer {{token}}
 GET {{api}}/expedientes/LINDE-2026-000001/geojson
 Authorization: Bearer {{token}}
 
+### 11b. Consulta pública del expediente (RF-15): sin token, con el CI enmascarado
+GET {{api}}/consulta/LINDE-2026-000001
+
 ### 12. Importar un polígono desde un archivo (Factory Method). Crea antes un segundo predio.
 POST {{api}}/predios
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
-{ "productorId": 1, "nombre": "Vecino", "municipio": "San Julián", "superficieDeclaradaHa": 30, "desmonteDeclaradoHa": null }
+{ "productorId": 1, "nombre": "Vecino", "municipio": "San Julián", "cultivo": "Maíz", "superficieDeclaradaHa": 30, "numeroTituloInra": null, "desmonteDeclaradoHa": null }
 
 ###
 POST {{api}}/predios/2/poligono/importar
@@ -138,3 +154,19 @@ Authorization: Bearer {{token}}
 ### 16. Bitácora de auditoría (Decorator)
 GET {{api}}/bitacora
 Authorization: Bearer {{token}}
+
+### 17. RNF-03: Ana inicia sesión y quiere abrir el predio 1, que es de Juan. Responde 403 "Acceso denegado".
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "correo": "ana@correo.bo", "contrasena": "linde2026" }
+
+> {% client.global.set("tokenAna", response.body.token); %}
+
+###
+GET {{api}}/predios/1
+Authorization: Bearer {{tokenAna}}
+
+### 18. Ana solo ve sus predios (lista vacía)
+GET {{api}}/predios
+Authorization: Bearer {{tokenAna}}

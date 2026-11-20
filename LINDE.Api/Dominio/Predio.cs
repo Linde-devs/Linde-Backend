@@ -11,8 +11,18 @@ public class Predio : IEntidad
     public int Id { get; set; }
     public int ProductorId { get; set; }
     public string Nombre { get; set; } = "";
+    /// <summary>Departamento de Bolivia donde está el predio; el municipio debe pertenecer a él.</summary>
+    public string Departamento { get; set; } = "Santa Cruz";
     public string Municipio { get; set; } = "";
+
+    /// <summary>Cultivo principal del predio (soya, café, cacao, etc.).</summary>
+    public string Cultivo { get; set; } = "";
+
+    /// <summary>Superficie declarada en hectáreas, con 2 decimales como máximo (RF-02).</summary>
     public double SuperficieDeclaradaHa { get; set; }
+
+    /// <summary>Número del título de propiedad emitido por el INRA, si el predio está titulado.</summary>
+    public string? NumeroTituloInra { get; set; }
 
     /// <summary>Superficie de desmonte que declara el productor, si la hay (se usa para la Ley 741).</summary>
     public double? DesmonteDeclaradoHa { get; set; }
@@ -22,8 +32,6 @@ public class Predio : IEntidad
     /// <summary>Se guarda como valor de la enumeración; el patrón organiza el comportamiento, no el almacenamiento.</summary>
     public EstadoExpediente Estado { get; private set; } = EstadoExpediente.Registrado;
 
-    public string? ComentarioVerificador { get; private set; }
-
     private IEstadoPredio EstadoActual => EstadosPredio.Para(Estado);
 
     public void VerificarEdicion() => EstadoActual.VerificarEdicion();
@@ -31,21 +39,6 @@ public class Predio : IEntidad
     public void VerificarEnvio() => EstadoActual.VerificarEnvio();
 
     public void EnviarARevision(bool hayAlertas) => Estado = EstadoActual.EnviarARevision(hayAlertas);
-
-    public void Aprobar(string? comentario)
-    {
-        Estado = EstadoActual.Aprobar();
-        ComentarioVerificador = comentario;
-    }
-
-    public void Observar(string comentario)
-    {
-        if (string.IsNullOrWhiteSpace(comentario))
-            throw new DatosInvalidosException("El comentario es obligatorio al observar un predio.");
-
-        Estado = EstadoActual.Observar();
-        ComentarioVerificador = comentario.Trim();
-    }
 
     public void VerificarGeneracionExpediente() => EstadoActual.VerificarGeneracionExpediente();
 }

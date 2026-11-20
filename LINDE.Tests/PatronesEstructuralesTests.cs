@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using LINDE.Api.Auditoria;
+using LINDE.Api.Autenticacion;
 using LINDE.Api.Cobertura;
 using LINDE.Api.Configuracion;
 using LINDE.Api.Contratos;
@@ -77,17 +78,18 @@ public class PatronesEstructuralesTests
         var bitacora = new Bitacora(registros, new UsuarioFijo("mauricio"));
 
         var real = new ServicioPredios(predios, productores, new RepositorioMemoria<Poligono>(),
-            new RepositorioMemoria<Documento>(), new RepositorioMemoria<Alerta>());
+            new RepositorioMemoria<Documento>(), new ControlAcceso(new UsuarioFijo()));
         IServicioPredios servicio = new ServicioPrediosAuditado(real, new AuditorOperaciones(bitacora));
 
-        var predio = servicio.Crear(new PredioDto(1, "El Algarrobo", "San Julián", 100, null));
-        Assert.Throws<OperacionNoPermitidaException>(() => servicio.Aprobar(predio.Id, null));
+        var predio = servicio.Crear(new PredioDto(1, "El Algarrobo", "San Julián", "Soya", 100, null, null, Departamento: "Santa Cruz"));
+        servicio.Obtener(predio.Id).EnviarARevision(hayAlertas: false);
+        Assert.Throws<OperacionNoPermitidaException>(() => servicio.Eliminar(predio.Id));
 
         var lista = bitacora.Listar();
         Assert.Equal(2, lista.Count);
         Assert.All(lista, r => Assert.Equal("mauricio", r.Usuario));
         Assert.Contains(lista, r => r.Operacion == "Crear predio" && r.Resultado == "Correcto" && r.EntidadId == predio.Id.ToString());
-        Assert.Contains(lista, r => r.Operacion == "Aprobar predio" && r.Resultado.StartsWith("Rechazado") && r.ValoresAnteriores != null);
+        Assert.Contains(lista, r => r.Operacion == "Eliminar predio" && r.Resultado.StartsWith("Rechazado") && r.ValoresAnteriores != null);
     }
 
     // ---------- Facade: validación de predios ----------
@@ -100,6 +102,7 @@ public class PatronesEstructuralesTests
         servicios.AddSingleton<IRepositorioParametros, RepositorioParametrosMemoria>();
         servicios.AddSingleton<IServicioParametros, ServicioParametros>();
         servicios.AddSingleton<IUsuarioActual>(new UsuarioFijo());
+        servicios.AddSingleton<ControlAcceso>();
         servicios.AddSingleton<IBitacora, Bitacora>();
         servicios.AddSingleton(cobertura);
         servicios.AddSingleton<EstrategiaAutorizacionAbt>();
@@ -129,8 +132,8 @@ public class PatronesEstructuralesTests
     [Fact]
     public async Task Facade_SinAlertasElPredioQuedaAprobado()
     {
-        var (fachada, predios, alertas) = ArmarFachada(new CoberturaContadora(60, 58), Ayudas.Predio(), Ayudas.Cuadrado(),
-            new Documento { Tipo = TipoDocumento.TituloPropiedad, TitularCi = "7845123", SuperficieHa = 120 },
+        var (fachada, predios, alertas) = ArmarFachada(new CoberturaContadora(60, 58), Completo(Ayudas.Predio(desmonte: 0)), Ayudas.Cuadrado(),
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120 },
             new Documento { Tipo = TipoDocumento.PlanOrdenamientoPredial, SuperficieHa = 120 });
 
         var resultado = await fachada.EnviarARevisionAsync(1);
@@ -143,15 +146,128 @@ public class PatronesEstructuralesTests
     }
 
     [Fact]
-    public async Task Facade_ConAlertasElPredioPasaARevision()
+    public async Task Facade_ConAlertasElPredioQuedaConAlertas()
     {
-        var (fachada, predios, alertas) = ArmarFachada(new CoberturaContadora(70, 40), Ayudas.Predio(), Ayudas.Cuadrado());
+        // Requisitos completos, pero el título es de otra persona y la cobertura bajó del 70 % al 40 %.
+        var (fachada, predios, alertas) = ArmarFachada(new CoberturaContadora(70, 40), Completo(Ayudas.Predio(desmonte: 0)), Ayudas.Cuadrado(),
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "1111111", SuperficieHa = 120 });
 
         var resultado = await fachada.EnviarARevisionAsync(1);
 
-        Assert.Equal(EstadoExpediente.EnRevision, predios.Obtener(1)!.Estado);
-        Assert.Equal(3, alertas.Listar().Count);
+        Assert.Equal(EstadoExpediente.ConAlertas, predios.Obtener(1)!.Estado);
+        Assert.Equal(2, alertas.Listar().Count);
+        Assert.Contains(alertas.Listar(), a => a.Capa == CapaValidacion.Titularidad);
         Assert.Contains(alertas.Listar(), a => a.Capa == CapaValidacion.Cobertura && a.Prioridad == PrioridadAlerta.Alta);
         Assert.Equal(4, resultado.Capas.Count);
+    }
+
+    private static Predio Completo(Predio p)
+    {
+        p.Cultivo = "Soya";
+        p.NumeroTituloInra = "TIT-001";
+        return p;
+    }
+
+    [Fact]
+    public async Task Requisitos_IncompletosBloqueanElEnvioYNoGuardanNada()
+    {
+        var (fachada, predios, alertas) = ArmarFachada(new CoberturaContadora(), Ayudas.Predio(), Ayudas.Cuadrado());
+
+        var revision = fachada.RevisarRequisitos(1);
+        Assert.False(revision.Completo);
+        Assert.Equal(new[] { "datos", "titulo", "desmonte" }, revision.Pendientes.Select(r => r.Clave));
+
+        var error = await Assert.ThrowsAsync<DatosInvalidosException>(() => fachada.EnviarARevisionAsync(1));
+        Assert.Contains("faltan requisitos", error.Message);
+        Assert.Equal(EstadoExpediente.Registrado, predios.Obtener(1)!.Estado);
+        Assert.Empty(alertas.Listar());
+        Assert.Empty(fachada.Historial(1));
+    }
+
+    [Fact]
+    public void Requisitos_FueraDeLaLey741ExigenPopYPlanDeDesmonte()
+    {
+        // 100 ha de predio y 30 ha de desmonte: no entra en la exención (50 ha de predio o 20 ha de desmonte).
+        var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(desmonte: 30)), Ayudas.Cuadrado(),
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120 });
+
+        Assert.Equal(new[] { "pop", "plan-desmonte" }, fachada.RevisarRequisitos(1).Pendientes.Select(r => r.Clave));
+    }
+
+    [Fact]
+    public void Requisitos_DentroDeLaLey741NoPidenDocumentosDeLaAbt()
+    {
+        var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(desmonte: 10)), Ayudas.Cuadrado(),
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120 });
+
+        var revision = fachada.RevisarRequisitos(1);
+        Assert.True(revision.Completo);
+        Assert.DoesNotContain(revision.Requisitos, r => r.Clave is "pop" or "plan-desmonte");
+    }
+
+    [Fact]
+    public void Requisitos_UnPuntoNoAlcanzaConMasDe4Hectareas()
+    {
+        var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(superficieHa: 4.5, desmonte: 0)),
+            [new Coordenada(-63.3, -17.6)],
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 5 });
+
+        var ubicacion = fachada.RevisarRequisitos(1).Requisitos.Single(r => r.Clave == "ubicacion");
+        Assert.False(ubicacion.Cumplido);
+        Assert.Contains("se exige el polígono", ubicacion.Detalle);
+    }
+
+    [Fact]
+    public void Predio_ElTituloSeRegistraJuntoConElPredio()
+    {
+        var predios = new RepositorioMemoria<Predio>();
+        var documentos = new RepositorioMemoria<Documento>();
+        var productores = new RepositorioMemoria<Productor>();
+        productores.Agregar(new Productor { Nombre = "Juan", Apellido = "Pérez", Ci = "7845123" });
+        var servicio = new ServicioPredios(predios, productores, new RepositorioMemoria<Poligono>(), documentos,
+            new ControlAcceso(new UsuarioFijo()));
+
+        var predio = servicio.Crear(new PredioDto(1, "El Algarrobo", "San Julián", "Soya", 100, "TIT-001", 0, "7845123", 100, "Santa Cruz"));
+        var titulo = documentos.Listar(_ => true).Single();
+        Assert.Equal(("TIT-001", "7845123", (double?)100), (titulo.Numero, titulo.TitularCi, titulo.SuperficieHa));
+
+        // Al editar el predio se actualiza el mismo documento, no se crea otro.
+        servicio.Actualizar(predio.Id, new PredioDto(1, "El Algarrobo", "San Julián", "Soya", 100, "TIT-002", 0, "7845123", 90, "Santa Cruz"));
+        titulo = documentos.Listar(_ => true).Single();
+        Assert.Equal(("TIT-002", (double?)90), (titulo.Numero, titulo.SuperficieHa));
+
+        Assert.Throws<DatosInvalidosException>(() =>
+            servicio.Crear(new PredioDto(1, "Otro", "San Julián", "Soya", 10, null, 0, "7845123", 10, "Santa Cruz")));
+    }
+
+    [Fact]
+    public void Predio_ElMunicipioDebeSerDelDepartamento()
+    {
+        var predios = new RepositorioMemoria<Predio>();
+        var productores = new RepositorioMemoria<Productor>();
+        productores.Agregar(new Productor { Nombre = "Juan", Apellido = "Pérez", Ci = "7845123" });
+        var servicio = new ServicioPredios(predios, productores, new RepositorioMemoria<Poligono>(),
+            new RepositorioMemoria<Documento>(), new ControlAcceso(new UsuarioFijo()));
+        PredioDto Dto(string? departamento, string municipio) =>
+            new(1, "El Algarrobo", municipio, "Café", 10, null, 0, Departamento: departamento);
+
+        // Sin importar mayúsculas ni tildes, se guarda el nombre oficial.
+        var predio = servicio.Crear(Dto("la paz", "caranavi"));
+        Assert.Equal(("La Paz", "Caranavi"), (predio.Departamento, predio.Municipio));
+        predio = servicio.Crear(Dto("Santa Cruz", "san julian"));
+        Assert.Equal("San Julián", predio.Municipio);
+
+        var error = Assert.Throws<DatosInvalidosException>(() => servicio.Crear(Dto("Beni", "San Julián")));
+        Assert.Contains("no es un municipio de Beni", error.Message);
+        Assert.Throws<DatosInvalidosException>(() => servicio.Crear(Dto("Atlántida", "Caranavi")));
+        Assert.Throws<DatosInvalidosException>(() => servicio.Crear(Dto(null, "Caranavi")));
+    }
+
+    [Fact]
+    public void DivisionPolitica_TieneLos340MunicipiosDeBolivia()
+    {
+        Assert.Equal(9, DivisionPolitica.Departamentos.Count());
+        Assert.Equal(340, DivisionPolitica.Municipios.Values.Sum(m => m.Length));
+        Assert.Equal(56, DivisionPolitica.Municipios["Santa Cruz"].Length);
     }
 }

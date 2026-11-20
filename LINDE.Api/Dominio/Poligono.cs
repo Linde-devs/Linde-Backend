@@ -1,3 +1,7 @@
+using System.Text.Json.Serialization;
+using LINDE.Api.Geometria;
+using NetTopologySuite.Geometries;
+
 namespace LINDE.Api.Dominio;
 
 /// <summary>Patrón Prototype: un objeto que sabe crear una copia independiente de sí mismo.</summary>
@@ -23,6 +27,18 @@ public class Poligono : IEntidad, IPrototipo<Poligono>
     public bool Vigente { get; set; } = true;
 
     public bool EsPunto => Vertices.Count == 1;
+
+    /// <summary>
+    /// La misma geometría, como la guarda PostGIS: columna geometry en WGS84 (SRID 4326) con índice espacial.
+    /// No tiene valor propio: se arma a partir de Vertices al guardar y los rellena al leer.
+    /// Así el resto del sistema sigue trabajando con la lista de vértices, y la base puede usar ST_Intersects (RF-06).
+    /// </summary>
+    [JsonIgnore]
+    public Geometry Geometria
+    {
+        get => Geometrias.CrearParaGuardar(Vertices);
+        set => Vertices = Geometrias.Vertices(value);
+    }
 
     /// <summary>
     /// Copia profunda: la lista de vértices es nueva. Con una copia superficial, las dos versiones

@@ -1,5 +1,6 @@
 using LINDE.Api.Autenticacion;
 using LINDE.Api.Dominio;
+using LINDE.Api.Geometria;
 
 namespace LINDE.Api.Infraestructura;
 
@@ -17,6 +18,7 @@ public class ManejoErrores(RequestDelegate siguiente, ILogger<ManejoErrores> log
             var codigo = ex switch
             {
                 CredencialesInvalidasException => StatusCodes.Status401Unauthorized,
+                AccesoDenegadoException => StatusCodes.Status403Forbidden,
                 RecursoNoEncontradoException => StatusCodes.Status404NotFound,
                 OperacionNoPermitidaException => StatusCodes.Status409Conflict,
                 ArgumentException => StatusCodes.Status400BadRequest,
@@ -30,7 +32,8 @@ public class ManejoErrores(RequestDelegate siguiente, ILogger<ManejoErrores> log
             await contexto.Response.WriteAsJsonAsync(new
             {
                 error = codigo == StatusCodes.Status500InternalServerError ? "Ocurrió un error inesperado." : ex.Message,
-                campo = (ex as DatosInvalidosException)?.Campo
+                campo = (ex as DatosInvalidosException)?.Campo,
+                tipo = (ex as GeometriaInvalidaException)?.Tipo.ToString()
             });
         }
     }
