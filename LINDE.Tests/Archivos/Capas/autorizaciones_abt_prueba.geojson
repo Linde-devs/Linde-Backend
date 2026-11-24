@@ -1,0 +1,74 @@
+{
+ "type": "FeatureCollection",
+ "name": "Autorizaciones ABT (datos de prueba ficticios)",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "codigo": "ABT-POP-2024-0009",
+    "superficie_ha": 120
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -63.0005,
+       -17.5005
+      ],
+      [
+       -62.99,
+       -17.5005
+      ],
+      [
+       -62.99,
+       -17.4905
+      ],
+      [
+       -63.0005,
+       -17.4905
+      ],
+      [
+       -63.0005,
+       -17.5005
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "codigo": "ABT-POP-2023-0151",
+    "superficie_ha": 95
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -63.011,
+       -17.5005
+      ],
+      [
+       -63.001,
+       -17.5005
+      ],
+      [
+       -63.001,
+       -17.491
+      ],
+      [
+       -63.011,
+       -17.491
+      ],
+      [
+       -63.011,
+       -17.5005
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

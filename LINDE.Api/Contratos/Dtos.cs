@@ -46,3 +46,7 @@ public record PoligonoVista(int Id, int PredioId, int Version, bool Vigente, boo
 /// <summary>Alerta con el nombre de su predio, para la lista del productor.</summary>
 public record AlertaVista(int Id, int PredioId, string Predio, CapaValidacion Capa, PrioridadAlerta Prioridad, string Mensaje,
     DateTime Fecha, bool Resuelta);
+
+/// <summary>CU-11. Una capa de referencia cargada por el administrador.</summary>
+public record CapaVista(int Id, TipoCapa Tipo, string Nombre, string Fuente, string Archivo, int CantidadElementos,
+    DateTime FechaCarga, string CargadaPor, bool Vigente);

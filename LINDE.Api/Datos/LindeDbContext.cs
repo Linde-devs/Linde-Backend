@@ -33,6 +33,8 @@ public class LindeDbContext(DbContextOptions<LindeDbContext> opciones) : DbConte
     public DbSet<Expediente> Expedientes => Set<Expediente>();
     public DbSet<RegistroBitacora> Bitacora => Set<RegistroBitacora>();
     public DbSet<FilaParametros> Parametros => Set<FilaParametros>();
+    public DbSet<CapaReferencia> CapasReferencia => Set<CapaReferencia>();
+    public DbSet<ElementoCapa> ElementosCapa => Set<ElementoCapa>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -234,5 +236,37 @@ public class ConfiguracionParametros : IEntityTypeConfiguration<FilaParametros>
         b.ToTable("Parametros");
         b.Property(f => f.Id).ValueGeneratedNever();
         b.Property(f => f.Datos).HasColumnType("jsonb");
+    }
+}
+
+/// <summary>CU-11. Capas de referencia del INRA y la ABT.</summary>
+public class ConfiguracionCapaReferencia : IEntityTypeConfiguration<CapaReferencia>
+{
+    public void Configure(EntityTypeBuilder<CapaReferencia> b)
+    {
+        b.ToTable("CapasReferencia");
+        b.Property(c => c.Tipo).HasConversion<string>().HasMaxLength(30);
+        b.Property(c => c.Nombre).HasMaxLength(150).IsRequired();
+        b.Property(c => c.Fuente).HasMaxLength(300).IsRequired();
+        b.Property(c => c.Archivo).HasMaxLength(260);
+        b.Property(c => c.CargadaPor).HasMaxLength(150);
+        b.HasIndex(c => new { c.Tipo, c.Vigente });
+    }
+}
+
+/// <summary>Polígonos de las capas, con índice espacial para el cruce de RF-07 (ST_Intersects).</summary>
+public class ConfiguracionElementoCapa : IEntityTypeConfiguration<ElementoCapa>
+{
+    public void Configure(EntityTypeBuilder<ElementoCapa> b)
+    {
+        b.ToTable("ElementosCapa");
+        b.Property(e => e.Tipo).HasConversion<string>().HasMaxLength(30);
+        b.Property(e => e.Codigo).HasMaxLength(60).IsRequired();
+        b.Property(e => e.TitularCi).HasMaxLength(10);
+        b.Property(e => e.Geometria).HasColumnType("geometry(Geometry, 4326)").IsRequired();
+        b.HasIndex(e => e.Geometria).HasMethod("gist");
+        b.HasIndex(e => e.CapaId);
+        b.HasIndex(e => e.Tipo);
+        b.HasOne<CapaReferencia>().WithMany().HasForeignKey(e => e.CapaId).OnDelete(DeleteBehavior.Cascade);
     }
 }

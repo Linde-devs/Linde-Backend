@@ -77,6 +77,55 @@ namespace LINDE.Api.Datos.Migraciones
                     b.ToTable("Alertas", (string)null);
                 });
 
+            modelBuilder.Entity("LINDE.Api.Dominio.CapaReferencia", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Archivo")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<int>("CantidadElementos")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CargadaPor")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime>("FechaCarga")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Fuente")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<bool>("Vigente")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Tipo", "Vigente");
+
+                    b.ToTable("CapasReferencia", (string)null);
+                });
+
             modelBuilder.Entity("LINDE.Api.Dominio.Documento", b =>
                 {
                     b.Property<int>("Id")
@@ -112,6 +161,51 @@ namespace LINDE.Api.Datos.Migraciones
                     b.HasIndex("PredioId");
 
                     b.ToTable("Documentos", (string)null);
+                });
+
+            modelBuilder.Entity("LINDE.Api.Dominio.ElementoCapa", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CapaId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<Geometry>("Geometria")
+                        .IsRequired()
+                        .HasColumnType("geometry(Geometry, 4326)");
+
+                    b.Property<double?>("SuperficieHa")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("TitularCi")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CapaId");
+
+                    b.HasIndex("Geometria");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Geometria"), "gist");
+
+                    b.HasIndex("Tipo");
+
+                    b.ToTable("ElementosCapa", (string)null);
                 });
 
             modelBuilder.Entity("LINDE.Api.Dominio.Poligono", b =>
@@ -526,6 +620,15 @@ namespace LINDE.Api.Datos.Migraciones
                     b.HasOne("LINDE.Api.Dominio.Predio", null)
                         .WithMany()
                         .HasForeignKey("PredioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("LINDE.Api.Dominio.ElementoCapa", b =>
+                {
+                    b.HasOne("LINDE.Api.Dominio.CapaReferencia", null)
+                        .WithMany()
+                        .HasForeignKey("CapaId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

@@ -42,6 +42,58 @@ Authorization: Bearer {{token}}
 
 { "nombre": "Ana", "apellido": "Mendoza", "ci": "4567891", "runpa": "RUNPA-123", "telefono": "70022334", "municipio": "Cuatro Cañadas", "correo": "ana@correo.bo", "contrasena": "linde2026" }
 
+### 1b. CU-11: el administrador carga la capa de títulos del INRA (archivo de prueba). El cruce de RF-07 la usa al enviar.
+POST {{api}}/capas
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=limite
+
+--limite
+Content-Disposition: form-data; name="tipo"
+
+TitulosInra
+--limite
+Content-Disposition: form-data; name="nombre"
+
+Títulos INRA de prueba
+--limite
+Content-Disposition: form-data; name="fuente"
+
+Datos ficticios para la demo (no son datos oficiales)
+--limite
+Content-Disposition: form-data; name="archivo"; filename="titulos_inra_prueba.geojson"
+Content-Type: application/geo+json
+
+< ../LINDE.Tests/Archivos/Capas/titulos_inra_prueba.geojson
+--limite--
+
+### 1c. CU-11: capa de autorizaciones de la ABT (POP y planes de desmonte)
+POST {{api}}/capas
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=limite
+
+--limite
+Content-Disposition: form-data; name="tipo"
+
+AutorizacionesAbt
+--limite
+Content-Disposition: form-data; name="nombre"
+
+Autorizaciones ABT de prueba
+--limite
+Content-Disposition: form-data; name="fuente"
+
+Datos ficticios para la demo (no son datos oficiales)
+--limite
+Content-Disposition: form-data; name="archivo"; filename="autorizaciones_abt_prueba.geojson"
+Content-Type: application/geo+json
+
+< ../LINDE.Tests/Archivos/Capas/autorizaciones_abt_prueba.geojson
+--limite--
+
+### 1d. Capas cargadas
+GET {{api}}/capas
+Authorization: Bearer {{token}}
+
 ### 2. Crear predio de 100 ha (CU-03), con su departamento y el título del INRA (crea también el documento del título)
 POST {{api}}/predios
 Content-Type: application/json
@@ -75,7 +127,7 @@ POST {{api}}/predios/1/documentos
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
-{ "tipo": "PlanOrdenamientoPredial", "numero": "POP-9", "titularCi": null, "superficieHa": 120 }
+{ "tipo": "PlanOrdenamientoPredial", "numero": "ABT-POP-2024-0009", "titularCi": null, "superficieHa": 120 }
 
 ### 6. Enviar a revisión (CU-06 y CU-07): Facade + Chain of Responsibility + Strategy + Adapter/Proxy + State
 POST {{api}}/predios/1/enviar

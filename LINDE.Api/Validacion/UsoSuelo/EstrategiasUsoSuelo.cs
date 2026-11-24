@@ -10,7 +10,11 @@ public interface IEstrategiaUsoSuelo
     EvaluacionUsoSuelo Evaluar(ContextoValidacion contexto);
 }
 
-public class EstrategiaAutorizacionAbt : IEstrategiaUsoSuelo
+/// <summary>
+/// El predio necesita autorización de la ABT. Revisa el POP y el Plan de desmonte registrados y, si el administrador
+/// cargó la capa de autorizaciones de la ABT (CU-11), que el polígono esté cubierto por ellas (RF-07).
+/// </summary>
+public class EstrategiaAutorizacionAbt(IConsultaCapas? capas = null) : IEstrategiaUsoSuelo
 {
     public string Nombre => "Autorización ABT";
 
@@ -37,7 +41,37 @@ public class EstrategiaAutorizacionAbt : IEstrategiaUsoSuelo
                     $"El desmonte declarado ({desmonte:0.##} ha) supera el autorizado ({permitido:0.##} ha).");
         }
 
-        return new(EstadoUsoSuelo.Autorizado, "El uso del suelo está autorizado por el POP de la ABT.");
+        if (capas is null || !capas.HayCapa(TipoCapa.AutorizacionesAbt))
+            return new(EstadoUsoSuelo.Autorizado,
+                "El uso del suelo está autorizado por el POP de la ABT. No hay capa de la ABT cargada: se comparó con los documentos registrados.");
+
+        return CruzarConCapa(ctx, capas, pop);
+    }
+
+    /// <summary>RF-07 con la capa de la ABT: el polígono debe quedar cubierto por las áreas autorizadas.</summary>
+    private static EvaluacionUsoSuelo CruzarConCapa(ContextoValidacion ctx, IConsultaCapas capas, Documento pop)
+    {
+        var vertices = ctx.Poligono.Vertices;
+        if (ctx.Poligono.EsPunto)
+            return capas.MejorCoincidencia(TipoCapa.AutorizacionesAbt, vertices) is { } c
+                ? new(EstadoUsoSuelo.Autorizado, $"El punto está dentro de la autorización {c.Elemento.Codigo} de la capa de la ABT.")
+                : new(EstadoUsoSuelo.NoAutorizado, "El punto no está dentro de ninguna autorización de la capa de la ABT.");
+
+        var cubierta = capas.AreaCubiertaHa(TipoCapa.AutorizacionesAbt, vertices) ?? 0;
+        var sinCubrir = Math.Max(0, ctx.AreaPoligonoHa - cubierta);
+        var p = ctx.Parametros;
+        var tolerancia = Math.Max(p.ToleranciaSuperposicionM2 / 10_000d, ctx.AreaPoligonoHa * p.ToleranciaSuperposicionPorcentaje / 100);
+        if (sinCubrir > tolerancia)
+            return new(EstadoUsoSuelo.NoAutorizado,
+                $"{sinCubrir:0.##} ha del polígono no están cubiertas por ninguna autorización de la capa de la ABT.");
+
+        var mejor = capas.MejorCoincidencia(TipoCapa.AutorizacionesAbt, vertices);
+        if (mejor is not null && !string.IsNullOrWhiteSpace(pop.Numero) && !ValidadorTitularidad.MismoCodigo(pop.Numero, mejor.Elemento.Codigo))
+            return new(EstadoUsoSuelo.NoAutorizado,
+                $"Según la capa de la ABT, el predio está en la autorización {mejor.Elemento.Codigo}, pero el POP registrado es {pop.Numero}.");
+
+        return new(EstadoUsoSuelo.Autorizado,
+            $"El polígono está cubierto por la autorización {mejor?.Elemento.Codigo} de la capa de la ABT.");
     }
 }
 

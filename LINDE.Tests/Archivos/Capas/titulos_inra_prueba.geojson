@@ -1,0 +1,146 @@
+{
+ "type": "FeatureCollection",
+ "name": "Títulos INRA (datos de prueba ficticios)",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "codigo": "SPP-NAL-070167",
+    "titular_ci": "7845123",
+    "superficie_ha": 120
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -63.0005,
+       -17.5005
+      ],
+      [
+       -62.99,
+       -17.5005
+      ],
+      [
+       -62.99,
+       -17.4905
+      ],
+      [
+       -63.0005,
+       -17.4905
+      ],
+      [
+       -63.0005,
+       -17.5005
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "codigo": "SPP-NAL-070168",
+    "titular_ci": "7845123",
+    "superficie_ha": 40
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -62.993,
+       -17.496
+      ],
+      [
+       -62.985,
+       -17.496
+      ],
+      [
+       -62.985,
+       -17.489
+      ],
+      [
+       -62.993,
+       -17.489
+      ],
+      [
+       -62.993,
+       -17.496
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "codigo": "SPP-NAL-071002",
+    "titular_ci": "4567891",
+    "superficie_ha": 95
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -63.011,
+       -17.5005
+      ],
+      [
+       -63.001,
+       -17.5005
+      ],
+      [
+       -63.001,
+       -17.491
+      ],
+      [
+       -63.011,
+       -17.491
+      ],
+      [
+       -63.011,
+       -17.5005
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "codigo": "PPD-NAL-095310",
+    "titular_ci": "6789123",
+    "superficie_ha": 60
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -63.0005,
+       -17.511
+      ],
+      [
+       -62.9925,
+       -17.511
+      ],
+      [
+       -62.9925,
+       -17.503
+      ],
+      [
+       -63.0005,
+       -17.503
+      ],
+      [
+       -63.0005,
+       -17.511
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

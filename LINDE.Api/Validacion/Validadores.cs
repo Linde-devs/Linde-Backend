@@ -99,8 +99,13 @@ public class ValidadorGeometrico(IRepositorio<Poligono> poligonos, IRepositorio<
     }
 }
 
-/// <summary>Capa 2. ¿De quién es y cuánto mide? Título del INRA, titular y superficie titulada.</summary>
-public class ValidadorTitularidad : ValidadorCapa
+/// <summary>
+/// Capa 2. ¿De quién es y cuánto mide? Título del INRA, titular y superficie titulada.
+/// Si el administrador cargó la capa de títulos del INRA (CU-11), además cruza el polígono con ella (RF-07):
+/// que caiga sobre un predio titulado, que sea el mismo título que registró el productor y que no se salga de él.
+/// Sin capa cargada, compara solo con los datos del título que declaró el productor.
+/// </summary>
+public class ValidadorTitularidad(IConsultaCapas? capas = null) : ValidadorCapa
 {
     public override CapaValidacion Capa => CapaValidacion.Titularidad;
     public override int Orden => 2;
@@ -120,9 +125,47 @@ public class ValidadorTitularidad : ValidadorCapa
         if (titulo.SuperficieHa is double titulada && ctx.AreaPoligonoHa > titulada)
             problemas.Add($"La superficie del polígono ({ctx.AreaPoligonoHa:0.##} ha) supera la del título ({titulada:0.##} ha) en {ctx.AreaPoligonoHa - titulada:0.##} ha.");
 
+        var cruce = CruzarConCapa(ctx, titulo, problemas);
+
         return Task.FromResult(problemas.Count > 0
             ? ConAlerta(string.Join(" ", problemas))
-            : Conforme("El título corresponde al declarante y cubre la superficie del polígono."));
+            : Conforme($"El título corresponde al declarante y cubre la superficie del polígono.{cruce}"));
+    }
+
+    /// <summary>RF-07 con la capa del INRA. Agrega los problemas encontrados y devuelve la nota para el resultado conforme.</summary>
+    private string CruzarConCapa(ContextoValidacion ctx, Documento titulo, List<string> problemas)
+    {
+        if (capas is null || !capas.HayCapa(TipoCapa.TitulosInra))
+            return " No hay capa del INRA cargada: se comparó con los datos del título que registró el productor.";
+
+        var coincidencia = capas.MejorCoincidencia(TipoCapa.TitulosInra, ctx.Poligono.Vertices);
+        if (coincidencia is null)
+        {
+            problemas.Add("El polígono no coincide con ningún predio titulado de la capa del INRA.");
+            return "";
+        }
+
+        var codigo = coincidencia.Elemento.Codigo;
+        if (!string.IsNullOrWhiteSpace(titulo.Numero) && !MismoCodigo(titulo.Numero, codigo))
+            problemas.Add($"Según la capa del INRA, el polígono está sobre el título {codigo}, pero el título registrado es {titulo.Numero}.");
+
+        // No se muestra el CI que figura en la capa: es un dato de otra persona.
+        if (coincidencia.Elemento.TitularCi is { } ci && ctx.Productor is not null && ci.Trim() != ctx.Productor.Ci.Trim())
+            problemas.Add($"Según la capa del INRA, el titular del título {codigo} no es el declarante.");
+
+        var p = ctx.Parametros;
+        var tolerancia = Math.Max(p.ToleranciaSuperposicionM2 / 10_000d, ctx.AreaPoligonoHa * p.ToleranciaSuperposicionPorcentaje / 100);
+        if (coincidencia.AreaFueraHa > tolerancia)
+            problemas.Add($"{coincidencia.AreaFueraHa:0.##} ha del polígono quedan fuera del título {codigo} según la capa del INRA.");
+
+        return $" Coincide con el título {codigo} de la capa del INRA.";
+    }
+
+    /// <summary>Compara números de título sin espacios, guiones ni mayúsculas ("SPP-NAL-070167" = "sppnal070167").</summary>
+    public static bool MismoCodigo(string a, string b)
+    {
+        static string Limpio(string t) => new(t.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+        return Limpio(a) == Limpio(b);
     }
 }
 

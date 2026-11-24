@@ -58,6 +58,32 @@ public static class Geometrias
         return FabricaPlana.CreatePolygon(coordenadas);
     }
 
+    /// <summary>
+    /// Proyecta cualquier geometría (polígono o multipolígono de una capa) a metros, centrada en <paramref name="centro"/>.
+    /// Se usa para medir cuánto del predio cae dentro de un título o de una autorización.
+    /// </summary>
+    public static Geometry Proyectar(Geometry geometria, Coordenada centro)
+    {
+        var proyeccion = new ProyeccionAreaEquivalente(centro);
+        var copia = (Geometry)geometria.Copy();
+        copia.Apply(new FiltroProyeccion(proyeccion));
+        copia.SRID = 0;
+        return copia;
+    }
+
+    private sealed class FiltroProyeccion(ProyeccionAreaEquivalente proyeccion) : ICoordinateSequenceFilter
+    {
+        public bool Done => false;
+        public bool GeometryChanged => true;
+
+        public void Filter(CoordinateSequence secuencia, int i)
+        {
+            var (x, y) = proyeccion.Proyectar(new Coordenada(secuencia.GetX(i), secuencia.GetY(i)));
+            secuencia.SetX(i, x);
+            secuencia.SetY(i, y);
+        }
+    }
+
     /// <summary>Centro aproximado del polígono (promedio de vértices sin repetir el de cierre).</summary>
     public static Coordenada Centro(IReadOnlyList<Coordenada> vertices)
     {

@@ -59,6 +59,10 @@ public static class RegistroServicios
         services.AddSingleton<ILectorPoligono, LectorKml>();
         services.AddSingleton<FabricaLectores>();
 
+        // Factory Method: lectores de capas de referencia (CU-11). Para shapefile, se registra un lector más.
+        services.AddSingleton<ILectorCapa, LectorCapaGeoJson>();
+        services.AddSingleton<FabricaLectoresCapa>();
+
         // Decorator: cada servicio real queda envuelto por su versión auditada.
         services.AddScoped<ServicioProductores>();
         services.AddScoped<VistasPredio>();
@@ -72,6 +76,14 @@ public static class RegistroServicios
         services.AddScoped<IServicioDocumentos>(sp =>
             new ServicioDocumentosAuditado(sp.GetRequiredService<ServicioDocumentos>(),
                 sp.GetRequiredService<IRepositorio<Dominio.Documento>>(), sp.GetRequiredService<AuditorOperaciones>()));
+
+        services.AddScoped<ServicioCapas>();
+        services.AddScoped<IServicioCapas>(sp =>
+            new ServicioCapasAuditado(sp.GetRequiredService<ServicioCapas>(),
+                sp.GetRequiredService<IRepositorio<Dominio.CapaReferencia>>(), sp.GetRequiredService<AuditorOperaciones>()));
+
+        // RF-07: cruce del predio con las capas vigentes; lo usan la titularidad y la estrategia de la ABT.
+        services.AddScoped<IConsultaCapas, ConsultaCapas>();
 
         // Adapter + Proxy: el validador de cobertura recibe IProveedorCobertura, que es el proxy de caché
         // delante del adaptador de Earth Engine (o de la simulación mientras no haya credenciales).
