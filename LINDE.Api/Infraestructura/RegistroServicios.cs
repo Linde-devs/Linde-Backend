@@ -95,7 +95,9 @@ public static class RegistroServicios
 
         // Adapter + Proxy: el validador de cobertura recibe IProveedorCobertura, que es el proxy de caché
         // delante del adaptador de Earth Engine (o de la simulación mientras no haya credenciales).
-        services.AddHttpClient<EarthEngineAdapter>();
+        services.AddHttpClient<EarthEngineAdapter>(c => c.Timeout = TimeSpan.FromSeconds(90));
+        services.AddHttpClient(nameof(TokenCuentaServicio));
+        services.AddSingleton<ITokenEarthEngine, TokenCuentaServicio>();
         services.AddSingleton<CoberturaSimulada>();
         services.AddScoped<IProveedorCobertura>(sp =>
         {

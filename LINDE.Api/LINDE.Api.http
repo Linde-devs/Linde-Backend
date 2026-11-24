@@ -257,6 +257,11 @@ Authorization: Bearer {{token}}
 GET {{api}}/parametros
 Authorization: Bearer {{token}}
 
+### 15b. Prueba de conexión con Earth Engine (administrador). Con el proveedor "Simulado" responde 400.
+### Con la llave configurada devuelve el bosque de 2020 y el actual de un polígono de prueba cerca de San Julián.
+GET {{api}}/cobertura/prueba
+Authorization: Bearer {{token}}
+
 ### 16. Bitácora de auditoría (Decorator)
 GET {{api}}/bitacora
 Authorization: Bearer {{token}}

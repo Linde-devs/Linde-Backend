@@ -114,7 +114,11 @@ Abstract Factory no se implementa: el documento de patrones creacionales lo deja
 
 ## Notas
 
-- **Earth Engine:** por defecto se usa `CoberturaSimulada` (`"Cobertura:Proveedor": "Simulado"` en `appsettings.json`). Para usar el adaptador real, cambia el proveedor a `"EarthEngine"` y configura `UrlServicio` y `Token`.
+- **Earth Engine:** por defecto se usa `CoberturaSimulada` (`"Cobertura:Proveedor": "Simulado"` en `appsettings.json`). El adaptador real (`EarthEngineAdapter`) llama a la API REST de Earth Engine con una cuenta de servicio: compara el mapa de bosque del JRC 2020 (`JRC/GFC2020/V3`) con la cobertura de árboles de Dynamic World de los últimos 180 días. Para activarlo:
+  1. Guarda la llave JSON de la cuenta de servicio **fuera** de la carpeta del repositorio (por ejemplo `C:\Users\<usuario>\secretos\linde-gee.json`). Nunca la subas a GitHub ni la pegues en un chat.
+  2. En `backend/LINDE.Api`: `dotnet user-secrets set "Cobertura:ArchivoCredenciales" "C:\Users\<usuario>\secretos\linde-gee.json"` y `dotnet user-secrets set "Cobertura:Proveedor" "EarthEngine"`.
+  3. El proyecto de Google Cloud se toma de la llave (`project_id`); si es otro, configura `Cobertura:ProyectoGcp`.
+  4. Comprueba la conexión con `GET /api/cobertura/prueba` (administrador) o con el botón de Gestionar parámetros.
 - **Superposición:** el ERS (RF-06) dice que bloquea el envío. Como esa decisión está pendiente, es el parámetro `superposicionBloquea` y se cambia desde `PUT /api/parametros`.
 - **Superposición entre productores:** se compara contra los predios de todos los productores, pero el aviso solo muestra el nombre del otro predio si es del mismo productor; si es de otro, dice "de otro productor".
 - **Departamentos y municipios:** `Dominio/DivisionPolitica.cs` tiene los 9 departamentos y los 340 municipios de Bolivia. Al registrar un predio, el municipio debe ser del departamento elegido (no importan las mayúsculas ni las tildes). Las pruebas están en `LINDE.Tests/DivisionPoliticaTests.cs`.

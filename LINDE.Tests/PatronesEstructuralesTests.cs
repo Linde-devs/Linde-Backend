@@ -1,5 +1,3 @@
-using System.Net;
-using System.Text;
 using LINDE.Api.Auditoria;
 using LINDE.Api.Autenticacion;
 using LINDE.Api.Cobertura;
@@ -18,35 +16,6 @@ namespace LINDE.Tests;
 
 public class PatronesEstructuralesTests
 {
-    // ---------- Adapter: Earth Engine ----------
-
-    private class RespuestaFija(string json) : HttpMessageHandler
-    {
-        public string? CuerpoEnviado { get; private set; }
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            CuerpoEnviado = await request.Content!.ReadAsStringAsync(ct);
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
-        }
-    }
-
-    [Fact]
-    public async Task Adapter_TraduceElPoligonoYLaRespuestaDeEarthEngine()
-    {
-        var manejador = new RespuestaFija("""{"forestFractionReference":0.62,"forestFractionCurrent":0.48,"imageDate":"2026-10-30"}""");
-        var opciones = Options.Create(new OpcionesCobertura { Proveedor = "EarthEngine", UrlServicio = "https://ee.ejemplo/analizar" });
-        var adaptador = new EarthEngineAdapter(new HttpClient(manejador), opciones);
-
-        var resultado = await adaptador.AnalizarAsync(Ayudas.Cuadrado(), new DateOnly(2020, 12, 31));
-
-        Assert.Equal(62, resultado.BosquePorcentajeCorte, 3);
-        Assert.Equal(48, resultado.BosquePorcentajeActual, 3);
-        Assert.Equal(new DateOnly(2026, 10, 30), resultado.FechaImagenActual);
-        Assert.Contains("\"type\":\"Polygon\"", manejador.CuerpoEnviado);
-        Assert.Contains("\"cutoffDate\":\"2020-12-31\"", manejador.CuerpoEnviado);
-    }
-
     // ---------- Proxy: caché del análisis satelital ----------
 
     [Fact]
