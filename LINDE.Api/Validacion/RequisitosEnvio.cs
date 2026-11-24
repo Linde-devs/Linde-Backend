@@ -85,17 +85,18 @@ public static class RequisitosEnvio
 
             if (!exento)
             {
-                var pop = documentos.Any(x => x.Tipo == TipoDocumento.PlanOrdenamientoPredial);
+                // Cuenta solo un documento con número y superficie: un registro vacío no cumple el requisito.
+                var pop = documentos.Any(x => x.Tipo == TipoDocumento.PlanOrdenamientoPredial && Completo(x));
                 lista.Add(new("pop", "Plan de ordenamiento predial (ABT)", pop,
-                    pop ? "Registrado." : $"El predio supera los límites de la Ley 741 ({p.Ley741PredioMaximoHa:0.##} ha de predio " +
-                                          $"y {p.Ley741DesmonteMaximoHa:0.##} ha de desmonte): registra el POP.",
+                    pop ? "Registrado con número y superficie autorizada." : $"El predio supera los límites de la Ley 741 ({p.Ley741PredioMaximoHa:0.##} ha de predio " +
+                                          $"y {p.Ley741DesmonteMaximoHa:0.##} ha de desmonte): registra el POP con su número y superficie autorizada.",
                     "documentos"));
 
                 if (d > 0)
                 {
-                    var plan = documentos.Any(x => x.Tipo == TipoDocumento.PlanDesmonte);
+                    var plan = documentos.Any(x => x.Tipo == TipoDocumento.PlanDesmonte && Completo(x));
                     lista.Add(new("plan-desmonte", "Plan de desmonte (ABT)", plan,
-                        plan ? "Registrado." : $"Se declaran {d:0.##} ha de desmonte: registra el plan de desmonte.",
+                        plan ? "Registrado con número y superficie autorizada." : $"Se declaran {d:0.##} ha de desmonte: registra el plan de desmonte con su número y superficie autorizada.",
                         "documentos"));
                 }
             }
@@ -103,4 +104,6 @@ public static class RequisitosEnvio
 
         return new RevisionRequisitos(predio.Id, lista.All(r => r.Cumplido), lista);
     }
+
+    private static bool Completo(Documento d) => !string.IsNullOrWhiteSpace(d.Numero) && d.SuperficieHa is > 0;
 }

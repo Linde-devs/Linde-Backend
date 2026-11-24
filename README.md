@@ -116,6 +116,8 @@ Abstract Factory no se implementa: el documento de patrones creacionales lo deja
 
 - **Earth Engine:** por defecto se usa `CoberturaSimulada` (`"Cobertura:Proveedor": "Simulado"` en `appsettings.json`). Para usar el adaptador real, cambia el proveedor a `"EarthEngine"` y configura `UrlServicio` y `Token`.
 - **Superposición:** el ERS (RF-06) dice que bloquea el envío. Como esa decisión está pendiente, es el parámetro `superposicionBloquea` y se cambia desde `PUT /api/parametros`.
+- **Superposición entre productores:** se compara contra los predios de todos los productores, pero el aviso solo muestra el nombre del otro predio si es del mismo productor; si es de otro, dice "de otro productor".
+- **Departamentos y municipios:** `Dominio/DivisionPolitica.cs` tiene los 9 departamentos y los 340 municipios de Bolivia. Al registrar un predio, el municipio debe ser del departamento elegido (no importan las mayúsculas ni las tildes). Las pruebas están en `LINDE.Tests/DivisionPoliticaTests.cs`.
 - **Áreas:** se calculan en metros con una proyección de área equivalente centrada en el predio, no en grados (RNF-09).
 - **Usuario de la bitácora:** se toma del token (el correo de la sesión).
 

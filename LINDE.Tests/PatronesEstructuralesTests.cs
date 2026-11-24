@@ -195,6 +195,37 @@ public class PatronesEstructuralesTests
     }
 
     [Fact]
+    public void Requisitos_UnPopOPlanSinNumeroNiSuperficieNoCumplen()
+    {
+        // Registros vacíos (por ejemplo, cargados antes de esta validación): existen, pero no cuentan como requisito.
+        var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(desmonte: 30)), Ayudas.Cuadrado(),
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120 },
+            new Documento { Tipo = TipoDocumento.PlanOrdenamientoPredial },
+            new Documento { Tipo = TipoDocumento.PlanDesmonte, Numero = "PD-001" });
+
+        Assert.Equal(new[] { "pop", "plan-desmonte" }, fachada.RevisarRequisitos(1).Pendientes.Select(r => r.Clave));
+    }
+
+    [Fact]
+    public void Documentos_NoSeAceptanSinNumeroNiSuperficie()
+    {
+        var predios = new RepositorioMemoria<Predio>();
+        var predio = predios.Agregar(Ayudas.Predio(1, 100));
+        var servicio = new ServicioDocumentos(predios, new RepositorioMemoria<Documento>(), new ControlAcceso(new UsuarioFijo()));
+
+        var sinNumero = Assert.Throws<DatosInvalidosException>(() =>
+            servicio.Agregar(predio.Id, new DocumentoDto(TipoDocumento.PlanOrdenamientoPredial, null, null, 100)));
+        Assert.Contains("número del Plan de Ordenamiento Predial", sinNumero.Message);
+
+        var sinSuperficie = Assert.Throws<DatosInvalidosException>(() =>
+            servicio.Agregar(predio.Id, new DocumentoDto(TipoDocumento.PlanDesmonte, "PD-001", null, null)));
+        Assert.Contains("superficie autorizada", sinSuperficie.Message);
+
+        var pop = servicio.Agregar(predio.Id, new DocumentoDto(TipoDocumento.PlanOrdenamientoPredial, "POP-001", null, 100));
+        Assert.Equal("POP-001", pop.Numero);
+    }
+
+    [Fact]
     public void Requisitos_DentroDeLaLey741NoPidenDocumentosDeLaAbt()
     {
         var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(desmonte: 10)), Ayudas.Cuadrado(),

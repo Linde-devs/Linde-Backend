@@ -42,12 +42,12 @@ Authorization: Bearer {{token}}
 
 { "nombre": "Ana", "apellido": "Mendoza", "ci": "4567891", "runpa": "RUNPA-123", "telefono": "70022334", "municipio": "Cuatro Cañadas", "correo": "ana@correo.bo", "contrasena": "linde2026" }
 
-### 2. Crear predio de 100 ha (CU-03)
+### 2. Crear predio de 100 ha (CU-03), con su departamento y el título del INRA (crea también el documento del título)
 POST {{api}}/predios
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
-{ "productorId": 1, "nombre": "El Algarrobo", "municipio": "San Julián", "cultivo": "Soya", "superficieDeclaradaHa": 100, "numeroTituloInra": "T-001", "desmonteDeclaradoHa": null }
+{ "productorId": 1, "nombre": "El Algarrobo", "departamento": "Santa Cruz", "municipio": "San Julián", "cultivo": "Soya", "superficieDeclaradaHa": 100, "numeroTituloInra": "SPP-NAL-070167", "titularCi": "7845123", "superficieTituladaHa": 120, "desmonteDeclaradoHa": 0 }
 
 ### 3. Registrar el polígono (CU-04). Longitud primero, latitud después; el último vértice repite el primero.
 ### Si la geometría no es válida (lados cruzados, anillo abierto, menos de 4 vértices) se rechaza aquí mismo con el tipo de error (RF-03).
@@ -66,14 +66,11 @@ Authorization: Bearer {{token}}
   "motivo": "Levantamiento inicial"
 }
 
-### 4. Adjuntar el título del INRA (CU-05)
-POST {{api}}/predios/1/documentos
-Content-Type: application/json
+### 4. Validar predio (CU-07): lista de requisitos para el envío. El título ya quedó registrado en el paso 2.
+GET {{api}}/predios/1/requisitos
 Authorization: Bearer {{token}}
 
-{ "tipo": "TituloPropiedad", "numero": "T-001", "titularCi": "7845123", "superficieHa": 120 }
-
-### 5. Adjuntar el POP de la ABT (CU-05)
+### 5. Registrar el POP de la ABT (CU-05). El número y la superficie autorizada son obligatorios.
 POST {{api}}/predios/1/documentos
 Content-Type: application/json
 Authorization: Bearer {{token}}
@@ -93,7 +90,7 @@ PUT {{api}}/predios/1
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
-{ "productorId": 1, "nombre": "Otro nombre", "municipio": "San Julián", "cultivo": "Soya", "superficieDeclaradaHa": 100, "numeroTituloInra": "T-001", "desmonteDeclaradoHa": null }
+{ "productorId": 1, "nombre": "Otro nombre", "departamento": "Santa Cruz", "municipio": "San Julián", "cultivo": "Soya", "superficieDeclaradaHa": 100, "numeroTituloInra": "SPP-NAL-070167", "titularCi": "7845123", "superficieTituladaHa": 120, "desmonteDeclaradoHa": 0 }
 
 ### 9. Vista para revisión (CU-09): lo que vería un técnico. Usa las mismas consultas: predio, polígono, documentos, validaciones y alertas.
 GET {{api}}/alertas?predioId=1
@@ -115,7 +112,7 @@ POST {{api}}/predios
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
-{ "productorId": 1, "nombre": "Vecino", "municipio": "San Julián", "cultivo": "Maíz", "superficieDeclaradaHa": 30, "numeroTituloInra": null, "desmonteDeclaradoHa": null }
+{ "productorId": 1, "nombre": "Vecino", "departamento": "Santa Cruz", "municipio": "San Julián", "cultivo": "Maíz", "superficieDeclaradaHa": 30, "numeroTituloInra": "SPP-NAL-070168", "titularCi": "7845123", "superficieTituladaHa": 40, "desmonteDeclaradoHa": 0 }
 
 ###
 POST {{api}}/predios/2/poligono/importar

@@ -80,6 +80,35 @@ public class PatronesComportamientoTests
         Assert.Contains("predio 99", contexto.Resultados[0].Mensaje);
     }
 
+    [Fact]
+    public async Task Superposicion_NoMuestraElNombreDelPredioDeOtroProductor()
+    {
+        var poligonos = new RepositorioMemoria<Poligono>();
+        var predios = new RepositorioMemoria<Predio>();
+        var ajeno = predios.Agregar(new Predio { ProductorId = 2, Nombre = "La Esperanza", Municipio = "Montero", SuperficieDeclaradaHa = 100 });
+        poligonos.Agregar(new Poligono { PredioId = ajeno.Id, Vertices = Ayudas.Cuadrado(lon: -62.995) });
+        var contexto = Ayudas.Contexto(Ayudas.Predio(id: 50), Ayudas.Cuadrado());
+
+        await ValidadorCapa.ArmarCadena(new List<ValidadorCapa> { new ValidadorGeometrico(poligonos, predios) }).ProcesarAsync(contexto);
+
+        Assert.DoesNotContain("La Esperanza", contexto.Resultados[0].Mensaje);
+        Assert.Contains("de otro productor", contexto.Resultados[0].Mensaje);
+    }
+
+    [Fact]
+    public async Task Superposicion_MuestraElNombreSiElPredioEsDelMismoProductor()
+    {
+        var poligonos = new RepositorioMemoria<Poligono>();
+        var predios = new RepositorioMemoria<Predio>();
+        var propio = predios.Agregar(new Predio { ProductorId = 1, Nombre = "El Cedro", Municipio = "Montero", SuperficieDeclaradaHa = 100 });
+        poligonos.Agregar(new Poligono { PredioId = propio.Id, Vertices = Ayudas.Cuadrado(lon: -62.995) });
+        var contexto = Ayudas.Contexto(Ayudas.Predio(id: 50), Ayudas.Cuadrado());
+
+        await ValidadorCapa.ArmarCadena(new List<ValidadorCapa> { new ValidadorGeometrico(poligonos, predios) }).ProcesarAsync(contexto);
+
+        Assert.Contains("El Cedro", contexto.Resultados[0].Mensaje);
+    }
+
     // ---------- State ----------
 
     [Fact]

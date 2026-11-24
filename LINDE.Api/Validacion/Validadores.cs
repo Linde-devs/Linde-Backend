@@ -48,7 +48,7 @@ public class ValidadorGeometrico(IRepositorio<Poligono> poligonos, IRepositorio<
         if (peor is { } s)
         {
             var porcentaje = s.AreaM2 / propio.Area * 100;
-            var detalle = $"Se superpone {s.AreaM2:0} m² ({porcentaje:0.##} %) con el predio {s.PredioId}{NombrePredio(s.PredioId)}.";
+            var detalle = $"Se superpone {s.AreaM2:0} m² ({porcentaje:0.##} %) con el predio {s.PredioId}{NombrePredio(s.PredioId, ctx.Predio.ProductorId)}.";
 
             if (s.AreaM2 > p.ToleranciaSuperposicionM2 || porcentaje > p.ToleranciaSuperposicionPorcentaje)
                 return p.SuperposicionBloquea
@@ -61,9 +61,14 @@ public class ValidadorGeometrico(IRepositorio<Poligono> poligonos, IRepositorio<
         return Conforme($"Polígono válido de {ctx.AreaPoligonoHa:0.##} ha, sin superposiciones.");
     }
 
-    /// <summary>RF-06 pide mostrar con qué predio se superpone: se agrega su nombre si se conoce.</summary>
-    private string NombrePredio(int predioId) =>
-        predios?.Obtener(predioId) is { } otro ? $" ({otro.Nombre})" : "";
+    /// <summary>
+    /// RF-06 pide mostrar con qué predio se superpone. El nombre solo se muestra si el otro predio es del mismo
+    /// productor: los datos de otros productores no se revelan.
+    /// </summary>
+    private string NombrePredio(int predioId, int productorId) =>
+        predios?.Obtener(predioId) is { } otro
+            ? otro.ProductorId == productorId ? $" ({otro.Nombre})" : " (de otro productor)"
+            : "";
 
     private (int PredioId, double AreaM2)? BuscarMayorSuperposicion(ContextoValidacion ctx, NetTopologySuite.Geometries.Polygon propio, Coordenada centro)
     {
