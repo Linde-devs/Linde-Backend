@@ -60,11 +60,15 @@ public static class RequisitosEnvio
         if (titulo is null || string.IsNullOrWhiteSpace(titulo.Numero)) faltaTitulo.Add("número de título");
         if (string.IsNullOrWhiteSpace(titulo?.TitularCi)) faltaTitulo.Add("CI del titular");
         if (titulo?.SuperficieHa is null) faltaTitulo.Add("superficie titulada");
-        lista.Add(new("titulo", "Título de propiedad (INRA)", faltaTitulo.Count == 0,
-            faltaTitulo.Count == 0
-                ? $"N.º {titulo!.Numero}, titular CI {titulo.TitularCi}, {titulo.SuperficieHa:0.##} ha."
-                : $"Completa en los datos del predio: {string.Join(", ", faltaTitulo)}.",
-            "predios"));
+        // RF-16: además de los datos, el archivo escaneado del título, para que el técnico y el SENASAG puedan verlo.
+        var faltaArchivo = titulo is null || !titulo.TieneArchivo;
+        lista.Add(new("titulo", "Título de propiedad (INRA)", faltaTitulo.Count == 0 && !faltaArchivo,
+            faltaTitulo.Count > 0
+                ? $"Completa en los datos del predio: {string.Join(", ", faltaTitulo)}."
+                : faltaArchivo
+                    ? "Sube el archivo del título (PDF o imagen) en Gestionar documentos."
+                    : $"N.º {titulo!.Numero}, titular CI {titulo.TitularCi}, {titulo.SuperficieHa:0.##} ha, con su archivo.",
+            faltaTitulo.Count > 0 ? "predios" : "documentos"));
 
         // 4. Desmonte declarado: decide si el predio entra en la exención de la Ley 741.
         var desmonte = predio.DesmonteDeclaradoHa;
@@ -85,18 +89,18 @@ public static class RequisitosEnvio
 
             if (!exento)
             {
-                // Cuenta solo un documento con número y superficie: un registro vacío no cumple el requisito.
+                // Cuenta solo un documento con número, superficie y archivo: un registro vacío no cumple el requisito.
                 var pop = documentos.Any(x => x.Tipo == TipoDocumento.PlanOrdenamientoPredial && Completo(x));
                 lista.Add(new("pop", "Plan de ordenamiento predial (ABT)", pop,
-                    pop ? "Registrado con número y superficie autorizada." : $"El predio supera los límites de la Ley 741 ({p.Ley741PredioMaximoHa:0.##} ha de predio " +
-                                          $"y {p.Ley741DesmonteMaximoHa:0.##} ha de desmonte): registra el POP con su número y superficie autorizada.",
+                    pop ? "Registrado con número, superficie autorizada y archivo." : $"El predio supera los límites de la Ley 741 ({p.Ley741PredioMaximoHa:0.##} ha de predio " +
+                                          $"y {p.Ley741DesmonteMaximoHa:0.##} ha de desmonte): registra el POP con su número, superficie autorizada y archivo.",
                     "documentos"));
 
                 if (d > 0)
                 {
                     var plan = documentos.Any(x => x.Tipo == TipoDocumento.PlanDesmonte && Completo(x));
                     lista.Add(new("plan-desmonte", "Plan de desmonte (ABT)", plan,
-                        plan ? "Registrado con número y superficie autorizada." : $"Se declaran {d:0.##} ha de desmonte: registra el plan de desmonte con su número y superficie autorizada.",
+                        plan ? "Registrado con número, superficie autorizada y archivo." : $"Se declaran {d:0.##} ha de desmonte: registra el plan de desmonte con su número, superficie autorizada y archivo.",
                         "documentos"));
                 }
             }
@@ -105,5 +109,5 @@ public static class RequisitosEnvio
         return new RevisionRequisitos(predio.Id, lista.All(r => r.Cumplido), lista);
     }
 
-    private static bool Completo(Documento d) => !string.IsNullOrWhiteSpace(d.Numero) && d.SuperficieHa is > 0;
+    private static bool Completo(Documento d) => !string.IsNullOrWhiteSpace(d.Numero) && d.SuperficieHa is > 0 && d.TieneArchivo;
 }

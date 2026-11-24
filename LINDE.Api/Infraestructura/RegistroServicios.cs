@@ -72,6 +72,9 @@ public static class RegistroServicios
         services.AddScoped<ServicioPoligonos>();
         services.AddScoped<IServicioPoligonos>(sp =>
             new ServicioPoligonosAuditado(sp.GetRequiredService<ServicioPoligonos>(), sp.GetRequiredService<AuditorOperaciones>()));
+        // RF-16: los archivos de los documentos van a una carpeta del servidor (o a memoria en las pruebas).
+        if (UsaMemoria(configuracion)) services.AddSingleton<IAlmacenArchivos, AlmacenArchivosMemoria>();
+        else services.AddSingleton<IAlmacenArchivos, AlmacenArchivosLocal>();
         services.AddScoped<ServicioDocumentos>();
         services.AddScoped<IServicioDocumentos>(sp =>
             new ServicioDocumentosAuditado(sp.GetRequiredService<ServicioDocumentos>(),

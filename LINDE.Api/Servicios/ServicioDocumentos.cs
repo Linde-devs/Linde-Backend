@@ -12,10 +12,28 @@ public interface IServicioDocumentos
     IReadOnlyList<Documento> Listar(int predioId);
     Documento Agregar(int predioId, DocumentoDto dto);
     void Eliminar(int id);
+
+    /// <summary>RF-16. Sube (o reemplaza) el archivo PDF o imagen del documento.</summary>
+    Documento AdjuntarArchivo(int id, string nombreArchivo, Stream contenido);
+
+    /// <summary>RF-16. El archivo del documento, para verlo o descargarlo.</summary>
+    ArchivoDocumento AbrirArchivo(int id);
 }
 
-public class ServicioDocumentos(IRepositorio<Predio> predios, IRepositorio<Documento> documentos, ControlAcceso acceso) : IServicioDocumentos
+/// <summary>Archivo de un documento listo para enviar al navegador.</summary>
+public record ArchivoDocumento(Stream Contenido, string Tipo, string Nombre);
+
+public class ServicioDocumentos(
+    IRepositorio<Predio> predios,
+    IRepositorio<Documento> documentos,
+    ControlAcceso acceso,
+    IAlmacenArchivos? almacen = null) : IServicioDocumentos
 {
+    /// <summary>RF-16: tamaño máximo del archivo de un documento (10 MB, suficiente para un escaneo legible).</summary>
+    public const long TamanoMaximoBytes = 10 * 1024 * 1024;
+
+    private readonly IAlmacenArchivos _almacen = almacen ?? new AlmacenArchivosMemoria();
+
     public IReadOnlyList<Documento> Listar(int predioId)
     {
         PredioAccesible(predioId);
@@ -74,12 +92,76 @@ public class ServicioDocumentos(IRepositorio<Predio> predios, IRepositorio<Docum
         var predio = PredioAccesible(documento.PredioId);
         predio.VerificarEdicion();
         documentos.Eliminar(id);
+        if (documento.ArchivoClave is { } clave) _almacen.Eliminar(clave);
         if (documento.Tipo == TipoDocumento.TituloPropiedad)
         {
             predio.NumeroTituloInra = null;
             predios.Actualizar(predio);
         }
     }
+
+    public Documento AdjuntarArchivo(int id, string nombreArchivo, Stream contenido)
+    {
+        var documento = documentos.Obtener(id) ?? throw new RecursoNoEncontradoException($"No existe el documento {id}.");
+        PredioAccesible(documento.PredioId).VerificarEdicion();
+
+        var extension = Path.GetExtension(nombreArchivo).ToLowerInvariant();
+        if (!TiposPermitidos.TryGetValue(extension, out var tipo))
+            throw new DatosInvalidosException("Solo se aceptan archivos PDF, JPG o PNG.", "archivo");
+
+        // Se copia a memoria para medirlo y revisar su firma antes de guardarlo.
+        using var copia = new MemoryStream();
+        contenido.CopyTo(copia);
+        if (copia.Length == 0)
+            throw new DatosInvalidosException("El archivo está vacío.", "archivo");
+        if (copia.Length > TamanoMaximoBytes)
+            throw new DatosInvalidosException($"El archivo pesa {copia.Length / 1024d / 1024d:0.#} MB; el máximo es {TamanoMaximoBytes / 1024 / 1024} MB.", "archivo");
+        if (!FirmaCorrecta(copia.GetBuffer(), extension))
+            throw new DatosInvalidosException($"El contenido del archivo no es un {extension.TrimStart('.').ToUpperInvariant()} válido.", "archivo");
+
+        copia.Position = 0;
+        var anterior = documento.ArchivoClave;
+        documento.ArchivoClave = _almacen.Guardar(copia, extension);
+        documento.ArchivoNombre = Path.GetFileName(nombreArchivo);
+        documento.ArchivoTipo = tipo;
+        documento.ArchivoBytes = copia.Length;
+        documento.ArchivoFecha = DateTime.UtcNow;
+        documentos.Actualizar(documento);
+
+        // El archivo reemplazado se borra después de guardar el nuevo, para no quedarse sin ninguno si algo falla.
+        if (anterior is not null) _almacen.Eliminar(anterior);
+        return documento;
+    }
+
+    public ArchivoDocumento AbrirArchivo(int id)
+    {
+        var documento = documentos.Obtener(id) ?? throw new RecursoNoEncontradoException($"No existe el documento {id}.");
+        PredioAccesible(documento.PredioId);
+        if (documento.ArchivoClave is null)
+            throw new RecursoNoEncontradoException("El documento todavía no tiene archivo.");
+        return new ArchivoDocumento(_almacen.Abrir(documento.ArchivoClave), documento.ArchivoTipo ?? "application/octet-stream",
+            documento.ArchivoNombre ?? $"documento-{id}");
+    }
+
+    private static readonly Dictionary<string, string> TiposPermitidos = new()
+    {
+        [".pdf"] = "application/pdf",
+        [".jpg"] = "image/jpeg",
+        [".jpeg"] = "image/jpeg",
+        [".png"] = "image/png"
+    };
+
+    /// <summary>
+    /// Revisa los primeros bytes: cambiar la extensión de un .exe a .pdf no alcanza para que se acepte.
+    /// PDF empieza con "%PDF", JPG con FF D8 FF y PNG con 89 50 4E 47.
+    /// </summary>
+    private static bool FirmaCorrecta(byte[] datos, string extension) => extension switch
+    {
+        ".pdf" => datos.Length >= 4 && datos[0] == 0x25 && datos[1] == 0x50 && datos[2] == 0x44 && datos[3] == 0x46,
+        ".jpg" or ".jpeg" => datos.Length >= 3 && datos[0] == 0xFF && datos[1] == 0xD8 && datos[2] == 0xFF,
+        ".png" => datos.Length >= 4 && datos[0] == 0x89 && datos[1] == 0x50 && datos[2] == 0x4E && datos[3] == 0x47,
+        _ => false
+    };
 
     private Predio PredioAccesible(int predioId)
     {
@@ -103,4 +185,10 @@ public class ServicioDocumentosAuditado(IServicioDocumentos interno, IRepositori
     public void Eliminar(int id) =>
         auditor.Ejecutar("Eliminar documento", Entidad, id.ToString(),
             AuditorOperaciones.Instantanea(documentos.Obtener(id)), () => interno.Eliminar(id));
+
+    public Documento AdjuntarArchivo(int id, string nombreArchivo, Stream contenido) =>
+        auditor.Ejecutar($"Subir archivo ({Path.GetFileName(nombreArchivo)})", Entidad, id.ToString(),
+            AuditorOperaciones.Instantanea(documentos.Obtener(id)), () => interno.AdjuntarArchivo(id, nombreArchivo, contenido));
+
+    public ArchivoDocumento AbrirArchivo(int id) => interno.AbrirArchivo(id);
 }

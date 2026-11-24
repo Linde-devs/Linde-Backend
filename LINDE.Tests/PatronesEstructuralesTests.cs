@@ -133,8 +133,8 @@ public class PatronesEstructuralesTests
     public async Task Facade_SinAlertasElPredioQuedaAprobado()
     {
         var (fachada, predios, alertas) = ArmarFachada(new CoberturaContadora(60, 58), Completo(Ayudas.Predio(desmonte: 0)), Ayudas.Cuadrado(),
-            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120 },
-            new Documento { Tipo = TipoDocumento.PlanOrdenamientoPredial, SuperficieHa = 120 });
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120, ArchivoClave = "titulo.pdf" },
+            new Documento { Tipo = TipoDocumento.PlanOrdenamientoPredial, Numero = "POP-001", SuperficieHa = 120, ArchivoClave = "pop.pdf" });
 
         var resultado = await fachada.EnviarARevisionAsync(1);
 
@@ -150,7 +150,7 @@ public class PatronesEstructuralesTests
     {
         // Requisitos completos, pero el título es de otra persona y la cobertura bajó del 70 % al 40 %.
         var (fachada, predios, alertas) = ArmarFachada(new CoberturaContadora(70, 40), Completo(Ayudas.Predio(desmonte: 0)), Ayudas.Cuadrado(),
-            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "1111111", SuperficieHa = 120 });
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "1111111", SuperficieHa = 120, ArchivoClave = "titulo.pdf" });
 
         var resultado = await fachada.EnviarARevisionAsync(1);
 
@@ -189,7 +189,7 @@ public class PatronesEstructuralesTests
     {
         // 100 ha de predio y 30 ha de desmonte: no entra en la exención (50 ha de predio o 20 ha de desmonte).
         var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(desmonte: 30)), Ayudas.Cuadrado(),
-            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120 });
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120, ArchivoClave = "titulo.pdf" });
 
         Assert.Equal(new[] { "pop", "plan-desmonte" }, fachada.RevisarRequisitos(1).Pendientes.Select(r => r.Clave));
     }
@@ -199,11 +199,66 @@ public class PatronesEstructuralesTests
     {
         // Registros vacíos (por ejemplo, cargados antes de esta validación): existen, pero no cuentan como requisito.
         var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(desmonte: 30)), Ayudas.Cuadrado(),
-            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120 },
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120, ArchivoClave = "titulo.pdf" },
             new Documento { Tipo = TipoDocumento.PlanOrdenamientoPredial },
             new Documento { Tipo = TipoDocumento.PlanDesmonte, Numero = "PD-001" });
 
         Assert.Equal(new[] { "pop", "plan-desmonte" }, fachada.RevisarRequisitos(1).Pendientes.Select(r => r.Clave));
+    }
+
+    [Fact]
+    public void Requisitos_ElTituloSinArchivoNoCumple()
+    {
+        var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(desmonte: 0)), Ayudas.Cuadrado(),
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120 });
+
+        var titulo = fachada.RevisarRequisitos(1).Requisitos.Single(r => r.Clave == "titulo");
+        Assert.False(titulo.Cumplido);
+        Assert.Equal("documentos", titulo.Ruta);
+        Assert.Contains("Sube el archivo del título", titulo.Detalle);
+    }
+
+    private static readonly byte[] Pdf = "%PDF-1.4 prueba"u8.ToArray();
+    private static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+    [Fact]
+    public void Archivos_SeSubenSeReemplazanYSeBorranConElDocumento()
+    {
+        var predios = new RepositorioMemoria<Predio>();
+        var documentos = new RepositorioMemoria<Documento>();
+        var almacen = new AlmacenArchivosMemoria();
+        var predio = predios.Agregar(Ayudas.Predio(1, 100));
+        var servicio = new ServicioDocumentos(predios, documentos, new ControlAcceso(new UsuarioFijo()), almacen);
+        var pop = servicio.Agregar(predio.Id, new DocumentoDto(TipoDocumento.PlanOrdenamientoPredial, "POP-001", null, 100));
+
+        servicio.AdjuntarArchivo(pop.Id, "pop.pdf", new MemoryStream(Pdf));
+        var primero = documentos.Obtener(pop.Id)!.ArchivoClave;
+        Assert.Equal("application/pdf", documentos.Obtener(pop.Id)!.ArchivoTipo);
+
+        // Reemplazar deja un solo archivo en el almacén.
+        servicio.AdjuntarArchivo(pop.Id, "pop.png", new MemoryStream(Png));
+        Assert.Single(almacen.Claves);
+        Assert.NotEqual(primero, documentos.Obtener(pop.Id)!.ArchivoClave);
+        Assert.Equal("image/png", servicio.AbrirArchivo(pop.Id).Tipo);
+
+        servicio.Eliminar(pop.Id);
+        Assert.Empty(almacen.Claves);
+    }
+
+    [Theory]
+    [InlineData("virus.exe", "Solo se aceptan archivos PDF, JPG o PNG")]
+    [InlineData("disfrazado.pdf", "no es un PDF válido")]
+    public void Archivos_SeRechazanLosQueNoSonPdfNiImagen(string nombre, string mensaje)
+    {
+        var predios = new RepositorioMemoria<Predio>();
+        var predio = predios.Agregar(Ayudas.Predio(1, 100));
+        var servicio = new ServicioDocumentos(predios, new RepositorioMemoria<Documento>(), new ControlAcceso(new UsuarioFijo()));
+        var pop = servicio.Agregar(predio.Id, new DocumentoDto(TipoDocumento.PlanOrdenamientoPredial, "POP-001", null, 100));
+
+        // Un ejecutable de Windows empieza con "MZ": cambiarle la extensión a .pdf no alcanza.
+        var error = Assert.Throws<DatosInvalidosException>(() =>
+            servicio.AdjuntarArchivo(pop.Id, nombre, new MemoryStream("MZ ejecutable"u8.ToArray())));
+        Assert.Contains(mensaje, error.Message);
     }
 
     [Fact]
@@ -229,7 +284,7 @@ public class PatronesEstructuralesTests
     public void Requisitos_DentroDeLaLey741NoPidenDocumentosDeLaAbt()
     {
         var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(desmonte: 10)), Ayudas.Cuadrado(),
-            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120 });
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120, ArchivoClave = "titulo.pdf" });
 
         var revision = fachada.RevisarRequisitos(1);
         Assert.True(revision.Completo);
@@ -241,7 +296,7 @@ public class PatronesEstructuralesTests
     {
         var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(superficieHa: 4.5, desmonte: 0)),
             [new Coordenada(-63.3, -17.6)],
-            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 5 });
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 5, ArchivoClave = "titulo.pdf" });
 
         var ubicacion = fachada.RevisarRequisitos(1).Requisitos.Single(r => r.Clave == "ubicacion");
         Assert.False(ubicacion.Cumplido);

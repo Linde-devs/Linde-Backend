@@ -3,3 +3,6 @@ obj/
 .vs/
 .idea/
 *.user
+
+# RF-16: archivos de los documentos que suben los productores (no van al repositorio)
+LINDE.Api/archivos/

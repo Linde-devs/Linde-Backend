@@ -118,6 +118,18 @@ Authorization: Bearer {{token}}
   "motivo": "Levantamiento inicial"
 }
 
+### 3b. RF-16: subir el PDF del título (documento 1, creado en el paso 2). Sin archivo, el título no cuenta como requisito.
+POST {{api}}/documentos/1/archivo
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=limite
+
+--limite
+Content-Disposition: form-data; name="archivo"; filename="documento_prueba.pdf"
+Content-Type: application/pdf
+
+< ../LINDE.Tests/Archivos/Documentos/documento_prueba.pdf
+--limite--
+
 ### 4. Validar predio (CU-07): lista de requisitos para el envío. El título ya quedó registrado en el paso 2.
 GET {{api}}/predios/1/requisitos
 Authorization: Bearer {{token}}
@@ -128,6 +140,22 @@ Content-Type: application/json
 Authorization: Bearer {{token}}
 
 { "tipo": "PlanOrdenamientoPredial", "numero": "ABT-POP-2024-0009", "titularCi": null, "superficieHa": 120 }
+
+### 5b. RF-16: subir el PDF del POP (documento 2)
+POST {{api}}/documentos/2/archivo
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=limite
+
+--limite
+Content-Disposition: form-data; name="archivo"; filename="documento_prueba.pdf"
+Content-Type: application/pdf
+
+< ../LINDE.Tests/Archivos/Documentos/documento_prueba.pdf
+--limite--
+
+### 5c. Ver el archivo del POP (se abre como PDF)
+GET {{api}}/documentos/2/archivo
+Authorization: Bearer {{token}}
 
 ### 6. Enviar a revisión (CU-06 y CU-07): Facade + Chain of Responsibility + Strategy + Adapter/Proxy + State
 POST {{api}}/predios/1/enviar
@@ -191,6 +219,18 @@ Authorization: Bearer {{token}}
 ###
 GET {{api}}/predios/2/poligono/historial
 Authorization: Bearer {{token}}
+
+### 13b. RF-16: subir el PDF del título del predio 2 (documento 3, creado en el paso 12)
+POST {{api}}/documentos/3/archivo
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=limite
+
+--limite
+Content-Disposition: form-data; name="archivo"; filename="documento_prueba.pdf"
+Content-Type: application/pdf
+
+< ../LINDE.Tests/Archivos/Documentos/documento_prueba.pdf
+--limite--
 
 ### 14. Enviar el predio 2: se superpone con el 1 y la capa geométrica corta la cadena
 POST {{api}}/predios/2/enviar

@@ -134,6 +134,24 @@ namespace LINDE.Api.Datos.Migraciones
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<long?>("ArchivoBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ArchivoClave")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTime?>("ArchivoFecha")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ArchivoNombre")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<string>("ArchivoTipo")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
                     b.Property<DateTime>("FechaRegistro")
                         .HasColumnType("timestamp with time zone");
 
