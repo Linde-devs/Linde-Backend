@@ -238,6 +238,10 @@ public class PatronesEstructuralesTests
 
         Assert.Throws<DatosInvalidosException>(() =>
             servicio.Crear(new PredioDto(1, "Otro", "San Julián", "Soya", 10, null, 0, "7845123", 10, "Santa Cruz")));
+
+        // Sin título se puede registrar el predio aunque el CI venga precargado: el título se agrega después.
+        servicio.Crear(new PredioDto(1, "Sin título", "San Julián", "Soya", 10, null, 0, "7845123", null, "Santa Cruz"));
+        Assert.Single(documentos.Listar(_ => true));
     }
 
     [Fact]
@@ -269,5 +273,24 @@ public class PatronesEstructuralesTests
         Assert.Equal(9, DivisionPolitica.Departamentos.Count());
         Assert.Equal(340, DivisionPolitica.Municipios.Values.Sum(m => m.Length));
         Assert.Equal(56, DivisionPolitica.Municipios["Santa Cruz"].Length);
+    }
+
+    [Fact]
+    public void Documentos_ElTituloSeRegistraTambienDesdeDocumentosYQuedaEnElPredio()
+    {
+        var predios = new RepositorioMemoria<Predio>();
+        var documentos = new RepositorioMemoria<Documento>();
+        var predio = predios.Agregar(Ayudas.Predio(1, 100));
+        var servicio = new ServicioDocumentos(predios, documentos, new ControlAcceso(new UsuarioFijo()));
+
+        var titulo = servicio.Agregar(predio.Id, new DocumentoDto(TipoDocumento.TituloPropiedad, "TIT-010", "7845123", 100));
+        Assert.Equal("TIT-010", predios.Obtener(predio.Id)!.NumeroTituloInra);
+
+        // Un solo título por predio.
+        Assert.Throws<DatosInvalidosException>(() =>
+            servicio.Agregar(predio.Id, new DocumentoDto(TipoDocumento.TituloPropiedad, "TIT-011", "7845123", 100)));
+
+        servicio.Eliminar(titulo.Id);
+        Assert.True(predios.Obtener(predio.Id)!.NumeroTituloInra is null);
     }
 }

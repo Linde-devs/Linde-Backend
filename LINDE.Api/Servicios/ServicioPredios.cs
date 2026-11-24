@@ -155,7 +155,9 @@ public class ServicioPredios(
             throw new DatosInvalidosException("El CI del titular debe tener de 5 a 10 dígitos.", "titularCi");
         if (dto.SuperficieTituladaHa is <= 0)
             throw new DatosInvalidosException("La superficie titulada debe ser mayor a cero.", "superficieTituladaHa");
-        if ((!string.IsNullOrWhiteSpace(dto.TitularCi) || dto.SuperficieTituladaHa is not null) && string.IsNullOrWhiteSpace(dto.NumeroTituloInra))
+        // El título es opcional al registrar el predio. Un CI sin número de título se ignora (no hay documento al que
+        // asociarlo), pero una superficie titulada sin número indica que falta el número.
+        if (dto.SuperficieTituladaHa is not null && string.IsNullOrWhiteSpace(dto.NumeroTituloInra))
             throw new DatosInvalidosException("Escribe el número de título INRA.", "numeroTituloInra");
         return (departamento, municipio);
     }

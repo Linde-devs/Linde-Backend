@@ -30,6 +30,20 @@ public class ServicioDocumentos(IRepositorio<Predio> predios, IRepositorio<Docum
         if (dto.SuperficieHa is <= 0)
             throw new DatosInvalidosException("La superficie del documento debe ser mayor a cero.");
 
+        // El título del INRA es uno solo por predio y su número es el del predio: se registra aquí o en el formulario
+        // del predio, y los dos quedan iguales.
+        if (dto.Tipo == TipoDocumento.TituloPropiedad)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Numero))
+                throw new DatosInvalidosException("Escribe el número de título INRA.", "numero");
+            if (dto.Numero.Trim().Length > 30)
+                throw new DatosInvalidosException("El número de título del INRA admite hasta 30 caracteres.", "numero");
+            if (documentos.Listar(d => d.PredioId == predioId && d.Tipo == TipoDocumento.TituloPropiedad).Any())
+                throw new DatosInvalidosException("El predio ya tiene título de propiedad. Edítalo desde Gestionar predios.");
+            predio.NumeroTituloInra = dto.Numero.Trim();
+            predios.Actualizar(predio);
+        }
+
         return documentos.Agregar(new Documento
         {
             PredioId = predioId,
@@ -43,8 +57,14 @@ public class ServicioDocumentos(IRepositorio<Predio> predios, IRepositorio<Docum
     public void Eliminar(int id)
     {
         var documento = documentos.Obtener(id) ?? throw new RecursoNoEncontradoException($"No existe el documento {id}.");
-        PredioAccesible(documento.PredioId).VerificarEdicion();
+        var predio = PredioAccesible(documento.PredioId);
+        predio.VerificarEdicion();
         documentos.Eliminar(id);
+        if (documento.Tipo == TipoDocumento.TituloPropiedad)
+        {
+            predio.NumeroTituloInra = null;
+            predios.Actualizar(predio);
+        }
     }
 
     private Predio PredioAccesible(int predioId)
