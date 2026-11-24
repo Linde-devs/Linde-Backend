@@ -80,6 +80,11 @@ public static class RegistroServicios
             new ServicioDocumentosAuditado(sp.GetRequiredService<ServicioDocumentos>(),
                 sp.GetRequiredService<IRepositorio<Dominio.Documento>>(), sp.GetRequiredService<AuditorOperaciones>()));
 
+        services.AddScoped<ServicioInspecciones>();
+        services.AddScoped<IServicioInspecciones>(sp =>
+            new ServicioInspeccionesAuditado(sp.GetRequiredService<ServicioInspecciones>(),
+                sp.GetRequiredService<IRepositorio<Dominio.InspeccionCampo>>(), sp.GetRequiredService<AuditorOperaciones>()));
+
         services.AddScoped<ServicioCapas>();
         services.AddScoped<IServicioCapas>(sp =>
             new ServicioCapasAuditado(sp.GetRequiredService<ServicioCapas>(),

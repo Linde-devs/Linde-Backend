@@ -176,6 +176,23 @@ Authorization: Bearer {{token}}
 GET {{api}}/alertas?predioId=1
 Authorization: Bearer {{token}}
 
+### 9b. RF-14: el productor registra la inspección de campo que hizo un técnico (fecha, técnico, resultado y comentario).
+### El comentario es obligatorio si el resultado es ConObservaciones o NoConforme.
+POST {{api}}/predios/1/inspecciones
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fecha": "2026-11-20",
+  "tecnico": "Ing. Carla Rojas",
+  "resultado": "ConObservaciones",
+  "comentario": "Los linderos coinciden con el polígono. Falta reponer el mojón del vértice 3."
+}
+
+### 9c. Inspecciones del predio (también aparecen en la Vista para revisión)
+GET {{api}}/predios/1/inspecciones
+Authorization: Bearer {{token}}
+
 ### 10. Generar el expediente (CU-10): Builder. Funciona con el predio aprobado o con alertas; el expediente indica su estado.
 POST {{api}}/expedientes/predio/1
 Authorization: Bearer {{token}}

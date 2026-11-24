@@ -39,6 +39,14 @@ public enum PrioridadAlerta
     Baja
 }
 
+/// <summary>RF-14. Resultado que anotó el técnico en la inspección de campo.</summary>
+public enum ResultadoInspeccion
+{
+    Conforme,
+    ConObservaciones,
+    NoConforme
+}
+
 public enum TipoDocumento
 {
     TituloPropiedad,

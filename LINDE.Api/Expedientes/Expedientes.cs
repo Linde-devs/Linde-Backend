@@ -16,6 +16,9 @@ public enum EstadoInforme
 /// <summary>Una alerta tal como queda escrita en el expediente.</summary>
 public record AlertaExpediente(CapaValidacion Capa, PrioridadAlerta Prioridad, string Mensaje);
 
+/// <summary>RF-14. Inspección de campo tal como queda en el expediente: fecha, técnico, resultado y comentario.</summary>
+public record InspeccionExpediente(DateOnly Fecha, string Tecnico, ResultadoInspeccion Resultado, string? Comentario);
+
 /// <summary>
 /// Expediente digital del predio (CU-10, RF-09). Se genera para predios aprobados y también para predios con alertas,
 /// indicando su estado. El productor lo muestra al técnico o al SENASAG, que pueden consultarlo por su código
@@ -44,6 +47,7 @@ public class Expediente : IEntidad
     public List<string> Documentos { get; set; } = new();
     public EstadoInforme Estado { get; set; }
     public List<AlertaExpediente> Alertas { get; set; } = new();
+    public List<InspeccionExpediente> Inspecciones { get; set; } = new();
 }
 
 /// <summary>
@@ -58,6 +62,7 @@ public class ExpedienteBuilder
     private ResultadoValidacion? _validacion;
     private readonly List<Documento> _documentos = new();
     private readonly List<Alerta> _alertas = new();
+    private readonly List<InspeccionCampo> _inspecciones = new();
 
     public ExpedienteBuilder ConProductor(Productor productor) { _productor = productor; return this; }
 
@@ -71,6 +76,9 @@ public class ExpedienteBuilder
 
     /// <summary>Sección que solo aparece si el predio quedó con alertas.</summary>
     public ExpedienteBuilder ConAlertas(IEnumerable<Alerta> alertas) { _alertas.AddRange(alertas); return this; }
+
+    /// <summary>RF-14. Sección opcional: inspecciones de campo registradas para el predio.</summary>
+    public ExpedienteBuilder ConInspecciones(IEnumerable<InspeccionCampo> inspecciones) { _inspecciones.AddRange(inspecciones); return this; }
 
     public Expediente Construir(string codigo)
     {
@@ -103,7 +111,9 @@ public class ExpedienteBuilder
             Validaciones = _validacion.Capas.ToList(),
             Documentos = _documentos.Select(d => $"{d.Tipo} {d.Numero}".Trim()).ToList(),
             Estado = _predio.Estado == EstadoExpediente.Aprobado ? EstadoInforme.Conforme : EstadoInforme.ConAlertas,
-            Alertas = _alertas.OrderBy(a => a.Prioridad).Select(a => new AlertaExpediente(a.Capa, a.Prioridad, a.Mensaje)).ToList()
+            Alertas = _alertas.OrderBy(a => a.Prioridad).Select(a => new AlertaExpediente(a.Capa, a.Prioridad, a.Mensaje)).ToList(),
+            Inspecciones = _inspecciones.OrderByDescending(i => i.Fecha)
+                .Select(i => new InspeccionExpediente(i.Fecha, i.Tecnico, i.Resultado, i.Comentario)).ToList()
         };
     }
 }
@@ -134,7 +144,11 @@ public static class FormatosExpediente
                 fechaGeneracion = e.FechaGeneracion,
                 estado = e.Estado.ToString(),
                 alertas = e.Alertas.Select(a => new { capa = a.Capa.ToString(), prioridad = a.Prioridad.ToString(), a.Mensaje }),
-                validaciones = e.Validaciones.Select(v => new { capa = v.Capa.ToString(), estado = v.Estado.ToString(), v.Mensaje })
+                validaciones = e.Validaciones.Select(v => new { capa = v.Capa.ToString(), estado = v.Estado.ToString(), v.Mensaje }),
+                inspecciones = e.Inspecciones.Select(i => new
+                {
+                    fecha = i.Fecha.ToString("yyyy-MM-dd"), tecnico = i.Tecnico, resultado = i.Resultado.ToString(), comentario = i.Comentario
+                })
             }
         };
 
@@ -150,7 +164,8 @@ public class ServicioExpedientes(
     IRepositorio<ResultadoValidacion> resultados,
     IRepositorio<Expediente> expedientes,
     IRepositorio<Alerta> alertas,
-    ControlAcceso acceso)
+    ControlAcceso acceso,
+    IRepositorio<InspeccionCampo>? inspecciones = null)
 {
     public Expediente Generar(int predioId)
     {
@@ -165,6 +180,7 @@ public class ServicioExpedientes(
 
         builder.ConDocumentos(documentos.Listar(d => d.PredioId == predioId))
                .ConAlertas(alertas.Listar(a => a.PredioId == predioId && !a.Resuelta));
+        if (inspecciones is not null) builder.ConInspecciones(inspecciones.Listar(i => i.PredioId == predioId));
 
         var codigo = $"LINDE-{DateTime.UtcNow:yyyy}-{predioId:D6}";
         var expediente = builder.Construir(codigo);
@@ -195,7 +211,8 @@ public class ServicioExpedientes(
             Id = e.Id, Codigo = e.Codigo, FechaGeneracion = e.FechaGeneracion, Productor = e.Productor,
             CiProductor = Enmascarar(e.CiProductor), PredioId = e.PredioId, Predio = e.Predio, Departamento = e.Departamento, Municipio = e.Municipio,
             SuperficieDeclaradaHa = e.SuperficieDeclaradaHa, AreaPoligonoHa = e.AreaPoligonoHa, VersionPoligono = e.VersionPoligono,
-            Vertices = e.Vertices, Validaciones = e.Validaciones, Documentos = e.Documentos, Estado = e.Estado, Alertas = e.Alertas
+            Vertices = e.Vertices, Validaciones = e.Validaciones, Documentos = e.Documentos, Estado = e.Estado, Alertas = e.Alertas,
+            Inspecciones = e.Inspecciones
         };
     }
 

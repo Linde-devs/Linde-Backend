@@ -38,6 +38,9 @@ public record EditarVerticeDto(double Lon, double Lat, string? Motivo);
 
 public record DocumentoDto(TipoDocumento Tipo, string? Numero, string? TitularCi, double? SuperficieHa);
 
+/// <summary>RF-14. Datos de la inspección de campo; los nulos se revisan en el servicio para dar un mensaje claro.</summary>
+public record InspeccionDto(DateOnly? Fecha, string? Tecnico, ResultadoInspeccion? Resultado, string? Comentario);
+
 
 /// <summary>Vista del polígono con su área calculada, para el frontend.</summary>
 public record PoligonoVista(int Id, int PredioId, int Version, bool Vigente, bool EsPunto, double? AreaHa,

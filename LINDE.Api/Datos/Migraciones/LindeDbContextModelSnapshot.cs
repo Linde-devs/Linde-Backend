@@ -226,6 +226,49 @@ namespace LINDE.Api.Datos.Migraciones
                     b.ToTable("ElementosCapa", (string)null);
                 });
 
+            modelBuilder.Entity("LINDE.Api.Dominio.InspeccionCampo", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Comentario")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("FechaRegistro")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PredioId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RegistradaPor")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Resultado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Tecnico")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PredioId");
+
+                    b.ToTable("InspeccionesCampo", (string)null);
+                });
+
             modelBuilder.Entity("LINDE.Api.Dominio.Poligono", b =>
                 {
                     b.Property<int>("Id")
@@ -582,6 +625,10 @@ namespace LINDE.Api.Datos.Migraciones
                     b.Property<DateTime>("FechaGeneracion")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Inspecciones")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
                     b.Property<string>("Municipio")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -647,6 +694,15 @@ namespace LINDE.Api.Datos.Migraciones
                     b.HasOne("LINDE.Api.Dominio.CapaReferencia", null)
                         .WithMany()
                         .HasForeignKey("CapaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("LINDE.Api.Dominio.InspeccionCampo", b =>
+                {
+                    b.HasOne("LINDE.Api.Dominio.Predio", null)
+                        .WithMany()
+                        .HasForeignKey("PredioId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

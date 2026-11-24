@@ -28,6 +28,7 @@ public class LindeDbContext(DbContextOptions<LindeDbContext> opciones) : DbConte
     public DbSet<Predio> Predios => Set<Predio>();
     public DbSet<Poligono> Poligonos => Set<Poligono>();
     public DbSet<Documento> Documentos => Set<Documento>();
+    public DbSet<InspeccionCampo> InspeccionesCampo => Set<InspeccionCampo>();
     public DbSet<Alerta> Alertas => Set<Alerta>();
     public DbSet<ResultadoValidacion> ResultadosValidacion => Set<ResultadoValidacion>();
     public DbSet<Expediente> Expedientes => Set<Expediente>();
@@ -167,6 +168,20 @@ public class ConfiguracionDocumento : IEntityTypeConfiguration<Documento>
     }
 }
 
+public class ConfiguracionInspeccionCampo : IEntityTypeConfiguration<InspeccionCampo>
+{
+    public void Configure(EntityTypeBuilder<InspeccionCampo> b)
+    {
+        b.ToTable("InspeccionesCampo");
+        b.Property(i => i.Tecnico).HasMaxLength(100).IsRequired();
+        b.Property(i => i.Resultado).HasConversion<string>().HasMaxLength(20);
+        b.Property(i => i.Comentario).HasMaxLength(1000);
+        b.Property(i => i.RegistradaPor).HasMaxLength(150);
+        b.HasOne<Predio>().WithMany().HasForeignKey(i => i.PredioId).OnDelete(DeleteBehavior.Cascade);
+        b.HasIndex(i => i.PredioId);
+    }
+}
+
 public class ConfiguracionAlerta : IEntityTypeConfiguration<Alerta>
 {
     public void Configure(EntityTypeBuilder<Alerta> b)
@@ -212,6 +227,7 @@ public class ConfiguracionExpediente : IEntityTypeConfiguration<Expediente>
         b.Property(e => e.Validaciones).ComoJson();
         b.Property(e => e.Documentos).ComoJson();
         b.Property(e => e.Alertas).ComoJson();
+        b.Property(e => e.Inspecciones).ComoJson();
         b.Property(e => e.Estado).HasConversion<string>().HasMaxLength(20);
 
         b.HasOne<Predio>().WithMany().HasForeignKey(e => e.PredioId).OnDelete(DeleteBehavior.Cascade);
