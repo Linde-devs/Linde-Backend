@@ -118,6 +118,7 @@ public static class RegistroServicios
         // Factory Method por contenedor + Chain of Responsibility: los cuatro eslabones de la cadena.
         // Una quinta capa (por ejemplo, áreas protegidas) se agrega con una línea más.
         services.AddScoped<ValidadorCapa, ValidadorGeometrico>();
+        services.AddScoped<VerificacionArchivoTitulo>();
         services.AddScoped<ValidadorCapa, ValidadorTitularidad>();
         services.AddScoped<ValidadorCapa, ValidadorUsoSuelo>();
         services.AddScoped<ValidadorCapa, ValidadorCobertura>();

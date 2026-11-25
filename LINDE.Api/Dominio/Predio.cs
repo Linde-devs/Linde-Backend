@@ -38,6 +38,12 @@ public class Predio : IEntidad
 
     public void VerificarEnvio() => EstadoActual.VerificarEnvio();
 
+    /// <summary>
+    /// Se llama después de cambiar los datos, el polígono o los documentos. El resultado del último envío ya no
+    /// corresponde a lo que hay ahora, así que el predio vuelve a "Registrado" y hay que enviarlo otra vez.
+    /// </summary>
+    public void RegistrarModificacion() => Estado = EstadoActual.Modificar();
+
     public void EnviarARevision(bool hayAlertas) => Estado = EstadoActual.EnviarARevision(hayAlertas);
 
     public void VerificarGeneracionExpediente() => EstadoActual.VerificarGeneracionExpediente();

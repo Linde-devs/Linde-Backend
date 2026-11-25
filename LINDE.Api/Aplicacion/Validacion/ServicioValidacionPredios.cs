@@ -72,7 +72,7 @@ public class ServicioValidacionPredios(
             CerrarAlertasAnteriores(predioId);
             var nuevas = contexto.Resultados.Where(r => r.Estado == EstadoCapa.Alerta).ToList();
             foreach (var capa in nuevas)
-                alertas.Agregar(new Alerta { PredioId = predioId, Capa = capa.Capa, Prioridad = Prioridad(capa.Capa), Mensaje = capa.Mensaje });
+                alertas.Agregar(new Alerta { PredioId = predioId, Capa = capa.Capa, Prioridad = capa.Prioridad ?? Prioridad(capa.Capa), Mensaje = capa.Mensaje });
 
             predio.EnviarARevision(hayAlertas: nuevas.Count > 0);
             predios.Actualizar(predio);

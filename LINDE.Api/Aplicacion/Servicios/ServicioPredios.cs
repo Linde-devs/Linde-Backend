@@ -45,6 +45,7 @@ public class ServicioPredios(
         var productorId = acceso.ProductorPropio ?? dto.ProductorId
             ?? throw new DatosInvalidosException("Selecciona el productor del predio.", "productorId");
         var (departamento, municipio) = Validar(dto, productorId);
+        var numeroTitulo = ValidarNumeroTitulo(dto.NumeroTituloInra, productorId, null);
 
         var predio = predios.Agregar(new Predio
         {
@@ -54,7 +55,7 @@ public class ServicioPredios(
             Municipio = municipio,
             Cultivo = dto.Cultivo.Trim(),
             SuperficieDeclaradaHa = dto.SuperficieDeclaradaHa,
-            NumeroTituloInra = Opcional(dto.NumeroTituloInra),
+            NumeroTituloInra = numeroTitulo,
             DesmonteDeclaradoHa = dto.DesmonteDeclaradoHa
         });
         SincronizarTitulo(predio, dto);
@@ -97,17 +98,24 @@ public class ServicioPredios(
 
         var productorId = acceso.ProductorPropio ?? dto.ProductorId ?? predio.ProductorId;
         var (departamento, municipio) = Validar(dto, productorId);
+        var numeroTitulo = ValidarNumeroTitulo(dto.NumeroTituloInra, productorId, predio.Id);
 
+        var antes = Huella(predio);
         predio.ProductorId = productorId;
         predio.Nombre = dto.Nombre.Trim();
         predio.Departamento = departamento;
         predio.Municipio = municipio;
         predio.Cultivo = dto.Cultivo.Trim();
         predio.SuperficieDeclaradaHa = dto.SuperficieDeclaradaHa;
-        predio.NumeroTituloInra = Opcional(dto.NumeroTituloInra);
+        predio.NumeroTituloInra = numeroTitulo;
         predio.DesmonteDeclaradoHa = dto.DesmonteDeclaradoHa;
-        predios.Actualizar(predio);
         SincronizarTitulo(predio, dto);
+
+        // Si cambió algún dato, el resultado del último envío ya no vale y hay que volver a enviarlo.
+        // Guardar sin cambios no le quita la aprobación.
+        if (Huella(predio) != antes)
+            predio.RegistrarModificacion();
+        predios.Actualizar(predio);
         return predio;
     }
 
@@ -143,8 +151,6 @@ public class ServicioPredios(
             throw new DatosInvalidosException("La superficie declarada debe ser mayor a cero.", "superficieDeclaradaHa");
         if (!DosDecimales(dto.SuperficieDeclaradaHa))
             throw new DatosInvalidosException("La superficie acepta como máximo 2 decimales.", "superficieDeclaradaHa");
-        if (dto.NumeroTituloInra?.Trim().Length > 30)
-            throw new DatosInvalidosException("El número de título del INRA admite hasta 30 caracteres.", "numeroTituloInra");
         if (dto.DesmonteDeclaradoHa is < 0)
             throw new DatosInvalidosException("El desmonte declarado no puede ser negativo.", "desmonteDeclaradoHa");
         if (dto.DesmonteDeclaradoHa is double desmonte && !DosDecimales(desmonte))
@@ -160,6 +166,32 @@ public class ServicioPredios(
         if (dto.SuperficieTituladaHa is not null && string.IsNullOrWhiteSpace(dto.NumeroTituloInra))
             throw new DatosInvalidosException("Escribe el número de título INRA.", "numeroTituloInra");
         return (departamento, municipio);
+    }
+
+    /// <summary>
+    /// El número del título debe tener la forma del INRA (por ejemplo SPP-NAL-070167) y no puede estar registrado en un
+    /// predio de otro productor. El mismo productor sí puede usarlo en varios lotes de una misma propiedad titulada.
+    /// </summary>
+    private string? ValidarNumeroTitulo(string? numero, int productorId, int? predioId)
+    {
+        if (string.IsNullOrWhiteSpace(numero))
+            return null;
+        var normalizado = NumeroTitulo.Normalizar(numero);
+        if (!NumeroTitulo.EsValido(normalizado))
+            throw new DatosInvalidosException(
+                $"\"{numero.Trim()}\" no es un número de título del INRA. Tiene la forma {NumeroTitulo.Ejemplo}: tipo de título, NAL y el número.",
+                "numeroTituloInra");
+        if (predios.Listar(p => p.Id != predioId && p.ProductorId != productorId && p.NumeroTituloInra == normalizado).Any())
+            throw new DatosInvalidosException($"El título {normalizado} ya está registrado en el predio de otro productor.", "numeroTituloInra");
+        return normalizado;
+    }
+
+    /// <summary>Los datos del predio y de su título que revisan las capas de validación.</summary>
+    private string Huella(Predio p)
+    {
+        var titulo = documentos.Listar(d => d.PredioId == p.Id && d.Tipo == TipoDocumento.TituloPropiedad).FirstOrDefault();
+        return string.Join("|", p.ProductorId, p.Nombre, p.Departamento, p.Municipio, p.Cultivo, p.SuperficieDeclaradaHa,
+            p.NumeroTituloInra, p.DesmonteDeclaradoHa, titulo?.Numero, titulo?.TitularCi, titulo?.SuperficieHa);
     }
 
     private static bool DosDecimales(double valor) => Math.Abs(valor * 100 - Math.Round(valor * 100)) < 1e-6;

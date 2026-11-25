@@ -60,22 +60,31 @@ public class ServicioDocumentos(
 
         // El título del INRA es uno solo por predio y su número es el del predio: se registra aquí o en el formulario
         // del predio, y los dos quedan iguales.
+        var numero = dto.Numero.Trim();
         if (dto.Tipo == TipoDocumento.TituloPropiedad)
         {
             if (documentos.Listar(d => d.PredioId == predioId && d.Tipo == TipoDocumento.TituloPropiedad).Any())
                 throw new DatosInvalidosException("El predio ya tiene título de propiedad. Edítalo desde Gestionar predios.");
-            predio.NumeroTituloInra = dto.Numero.Trim();
-            predios.Actualizar(predio);
+            numero = NumeroTitulo.Normalizar(numero);
+            if (!NumeroTitulo.EsValido(numero))
+                throw new DatosInvalidosException(
+                    $"\"{dto.Numero.Trim()}\" no es un número de título del INRA. Tiene la forma {NumeroTitulo.Ejemplo}: tipo de título, NAL y el número.",
+                    "numero");
+            if (predios.Listar(p => p.Id != predioId && p.ProductorId != predio.ProductorId && p.NumeroTituloInra == numero).Any())
+                throw new DatosInvalidosException($"El título {numero} ya está registrado en el predio de otro productor.", "numero");
+            predio.NumeroTituloInra = numero;
         }
 
-        return documentos.Agregar(new Documento
+        var documento = documentos.Agregar(new Documento
         {
             PredioId = predioId,
             Tipo = dto.Tipo,
-            Numero = dto.Numero?.Trim(),
+            Numero = numero,
             TitularCi = dto.TitularCi?.Trim(),
             SuperficieHa = dto.SuperficieHa
         });
+        Modificado(predio);
+        return documento;
     }
 
     private static string NombreDocumento(TipoDocumento tipo) => tipo switch
@@ -94,16 +103,22 @@ public class ServicioDocumentos(
         documentos.Eliminar(id);
         if (documento.ArchivoClave is { } clave) _almacen.Eliminar(clave);
         if (documento.Tipo == TipoDocumento.TituloPropiedad)
-        {
             predio.NumeroTituloInra = null;
-            predios.Actualizar(predio);
-        }
+        Modificado(predio);
+    }
+
+    /// <summary>Con otros documentos, el resultado del último envío ya no vale: el predio vuelve a "Registrado".</summary>
+    private void Modificado(Predio predio)
+    {
+        predio.RegistrarModificacion();
+        predios.Actualizar(predio);
     }
 
     public Documento AdjuntarArchivo(int id, string nombreArchivo, Stream contenido)
     {
         var documento = documentos.Obtener(id) ?? throw new RecursoNoEncontradoException($"No existe el documento {id}.");
-        PredioAccesible(documento.PredioId).VerificarEdicion();
+        var predio = PredioAccesible(documento.PredioId);
+        predio.VerificarEdicion();
 
         var extension = Path.GetExtension(nombreArchivo).ToLowerInvariant();
         if (!TiposPermitidos.TryGetValue(extension, out var tipo))
@@ -127,6 +142,7 @@ public class ServicioDocumentos(
         documento.ArchivoBytes = copia.Length;
         documento.ArchivoFecha = DateTime.UtcNow;
         documentos.Actualizar(documento);
+        Modificado(predio);
 
         // El archivo reemplazado se borra después de guardar el nuevo, para no quedarse sin ninguno si algo falla.
         if (anterior is not null) _almacen.Eliminar(anterior);

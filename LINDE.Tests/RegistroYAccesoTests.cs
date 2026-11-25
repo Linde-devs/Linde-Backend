@@ -39,7 +39,7 @@ public class RegistroYAccesoTests
         new("Juan", "Pérez", ci, null, "70012345", "San Julián", correo, "linde2026");
 
     private static PredioDto Predio(int? productorId = null, double superficie = 120.5) =>
-        new(productorId, "El Algarrobo", "San Julián", "Soya", superficie, "TIT-001", null, Departamento: "Santa Cruz");
+        new(productorId, "El Algarrobo", "San Julián", "Soya", superficie, "SPP-NAL-070167", null, Departamento: "Santa Cruz");
 
     private static UsuarioFijo ComoProductor(ProductorVista p) => new(p.Correo, RolUsuario.Productor, p.Id);
 

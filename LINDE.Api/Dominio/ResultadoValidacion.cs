@@ -7,6 +7,12 @@ public class ResultadoCapa
     public EstadoCapa Estado { get; init; }
     public string Mensaje { get; init; } = "";
 
+    /// <summary>
+    /// Prioridad de la alerta, cuando la capa la decide según el problema. Si es null se usa la de la capa
+    /// (Alta para uso de suelo y cobertura, Media para las demás).
+    /// </summary>
+    public PrioridadAlerta? Prioridad { get; init; }
+
     /// <summary>Solo para la capa de uso permitido.</summary>
     public EstadoUsoSuelo? UsoSuelo { get; init; }
 }

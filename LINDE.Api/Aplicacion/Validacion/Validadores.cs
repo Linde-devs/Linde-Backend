@@ -104,8 +104,10 @@ public class ValidadorGeometrico(IRepositorio<Poligono> poligonos, IRepositorio<
 /// Si el administrador cargó la capa de títulos del INRA (CU-11), además cruza el polígono con ella (RF-07):
 /// que caiga sobre un predio titulado, que sea el mismo título que registró el productor y que no se salga de él.
 /// Sin capa cargada, compara solo con los datos del título que declaró el productor.
+/// También busca el número del título dentro de su archivo (RF-16): si el archivo es una imagen o un PDF escaneado,
+/// LINDE no puede leerlo y genera una alerta de prioridad Baja para que una persona lo revise.
 /// </summary>
-public class ValidadorTitularidad(IConsultaCapas? capas = null) : ValidadorCapa
+public class ValidadorTitularidad(IConsultaCapas? capas = null, VerificacionArchivoTitulo? archivo = null) : ValidadorCapa
 {
     public override CapaValidacion Capa => CapaValidacion.Titularidad;
     public override int Orden => 2;
@@ -127,9 +129,20 @@ public class ValidadorTitularidad(IConsultaCapas? capas = null) : ValidadorCapa
 
         var cruce = CruzarConCapa(ctx, titulo, problemas);
 
-        return Task.FromResult(problemas.Count > 0
-            ? ConAlerta(string.Join(" ", problemas))
-            : Conforme($"El título corresponde al declarante y cubre la superficie del polígono.{cruce}"));
+        var lectura = archivo?.Verificar(titulo) ?? LecturaArchivo.SinArchivo;
+        if (lectura == LecturaArchivo.NumeroNoEncontrado)
+            problemas.Add($"El archivo del título no contiene el número {titulo.Numero}: puede que no sea el documento correcto.");
+        var noLegible = lectura == LecturaArchivo.NoLegible
+            ? $"LINDE no pudo leer el número en el archivo del título (es una imagen o un PDF escaneado): revisa a mano que sea el título {titulo.Numero}."
+            : null;
+
+        if (problemas.Count > 0)
+            return Task.FromResult(ConAlerta(string.Join(" ", noLegible is null ? problemas : problemas.Append(noLegible))));
+        if (noLegible is not null)
+            return Task.FromResult(ConAlerta($"Los datos del título son correctos. {noLegible}", PrioridadAlerta.Baja));
+
+        var leido = lectura == LecturaArchivo.NumeroEncontrado ? " El número del título aparece en su archivo." : "";
+        return Task.FromResult(Conforme($"El título corresponde al declarante y cubre la superficie del polígono.{leido}{cruce}"));
     }
 
     /// <summary>RF-07 con la capa del INRA. Agrega los problemas encontrados y devuelve la nota para el resultado conforme.</summary>

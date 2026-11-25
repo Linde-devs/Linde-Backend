@@ -128,7 +128,12 @@ public class ServicioPoligonos(
             poligonos.Actualizar(vigente);
         }
 
-        return poligonos.Agregar(nueva);
+        var guardada = poligonos.Agregar(nueva);
+
+        // Con otro polígono, el resultado del último envío ya no vale: el predio vuelve a "Registrado".
+        predio.RegistrarModificacion();
+        predios.Actualizar(predio);
+        return guardada;
     }
 
     private Predio PredioAccesible(int predioId)

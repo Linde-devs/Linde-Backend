@@ -51,14 +51,14 @@ public class PatronesEstructuralesTests
         IServicioPredios servicio = new ServicioPrediosAuditado(real, new AuditorOperaciones(bitacora));
 
         var predio = servicio.Crear(new PredioDto(1, "El Algarrobo", "San Julián", "Soya", 100, null, null, Departamento: "Santa Cruz"));
-        servicio.Obtener(predio.Id).EnviarARevision(hayAlertas: false);
-        Assert.Throws<OperacionNoPermitidaException>(() => servicio.Eliminar(predio.Id));
+        Assert.Throws<DatosInvalidosException>(() => servicio.Actualizar(predio.Id,
+            new PredioDto(1, "", "San Julián", "Soya", 100, null, null, Departamento: "Santa Cruz")));
 
         var lista = bitacora.Listar();
         Assert.Equal(2, lista.Count);
         Assert.All(lista, r => Assert.Equal("mauricio", r.Usuario));
         Assert.Contains(lista, r => r.Operacion == "Crear predio" && r.Resultado == "Correcto" && r.EntidadId == predio.Id.ToString());
-        Assert.Contains(lista, r => r.Operacion == "Eliminar predio" && r.Resultado.StartsWith("Rechazado") && r.ValoresAnteriores != null);
+        Assert.Contains(lista, r => r.Operacion == "Actualizar predio" && r.Resultado.StartsWith("Rechazado") && r.ValoresAnteriores != null);
     }
 
     // ---------- Facade: validación de predios ----------
@@ -102,7 +102,7 @@ public class PatronesEstructuralesTests
     public async Task Facade_SinAlertasElPredioQuedaAprobado()
     {
         var (fachada, predios, alertas) = ArmarFachada(new CoberturaContadora(60, 58), Completo(Ayudas.Predio(desmonte: 0)), Ayudas.Cuadrado(),
-            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120, ArchivoClave = "titulo.pdf" },
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "SPP-NAL-070167", TitularCi = "7845123", SuperficieHa = 120, ArchivoClave = "titulo.pdf" },
             new Documento { Tipo = TipoDocumento.PlanOrdenamientoPredial, Numero = "POP-001", SuperficieHa = 120, ArchivoClave = "pop.pdf" });
 
         var resultado = await fachada.EnviarARevisionAsync(1);
@@ -119,7 +119,7 @@ public class PatronesEstructuralesTests
     {
         // Requisitos completos, pero el título es de otra persona y la cobertura bajó del 70 % al 40 %.
         var (fachada, predios, alertas) = ArmarFachada(new CoberturaContadora(70, 40), Completo(Ayudas.Predio(desmonte: 0)), Ayudas.Cuadrado(),
-            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "1111111", SuperficieHa = 120, ArchivoClave = "titulo.pdf" });
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "SPP-NAL-070167", TitularCi = "1111111", SuperficieHa = 120, ArchivoClave = "titulo.pdf" });
 
         var resultado = await fachada.EnviarARevisionAsync(1);
 
@@ -133,7 +133,7 @@ public class PatronesEstructuralesTests
     private static Predio Completo(Predio p)
     {
         p.Cultivo = "Soya";
-        p.NumeroTituloInra = "TIT-001";
+        p.NumeroTituloInra = "SPP-NAL-070167";
         return p;
     }
 
@@ -158,7 +158,7 @@ public class PatronesEstructuralesTests
     {
         // 100 ha de predio y 30 ha de desmonte: no entra en la exención (50 ha de predio o 20 ha de desmonte).
         var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(desmonte: 30)), Ayudas.Cuadrado(),
-            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120, ArchivoClave = "titulo.pdf" });
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "SPP-NAL-070167", TitularCi = "7845123", SuperficieHa = 120, ArchivoClave = "titulo.pdf" });
 
         Assert.Equal(new[] { "pop", "plan-desmonte" }, fachada.RevisarRequisitos(1).Pendientes.Select(r => r.Clave));
     }
@@ -168,7 +168,7 @@ public class PatronesEstructuralesTests
     {
         // Registros vacíos (por ejemplo, cargados antes de esta validación): existen, pero no cuentan como requisito.
         var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(desmonte: 30)), Ayudas.Cuadrado(),
-            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120, ArchivoClave = "titulo.pdf" },
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "SPP-NAL-070167", TitularCi = "7845123", SuperficieHa = 120, ArchivoClave = "titulo.pdf" },
             new Documento { Tipo = TipoDocumento.PlanOrdenamientoPredial },
             new Documento { Tipo = TipoDocumento.PlanDesmonte, Numero = "PD-001" });
 
@@ -179,7 +179,7 @@ public class PatronesEstructuralesTests
     public void Requisitos_ElTituloSinArchivoNoCumple()
     {
         var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(desmonte: 0)), Ayudas.Cuadrado(),
-            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120 });
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "SPP-NAL-070167", TitularCi = "7845123", SuperficieHa = 120 });
 
         var titulo = fachada.RevisarRequisitos(1).Requisitos.Single(r => r.Clave == "titulo");
         Assert.False(titulo.Cumplido);
@@ -253,7 +253,7 @@ public class PatronesEstructuralesTests
     public void Requisitos_DentroDeLaLey741NoPidenDocumentosDeLaAbt()
     {
         var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(desmonte: 10)), Ayudas.Cuadrado(),
-            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 120, ArchivoClave = "titulo.pdf" });
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "SPP-NAL-070167", TitularCi = "7845123", SuperficieHa = 120, ArchivoClave = "titulo.pdf" });
 
         var revision = fachada.RevisarRequisitos(1);
         Assert.True(revision.Completo);
@@ -265,7 +265,7 @@ public class PatronesEstructuralesTests
     {
         var (fachada, _, _) = ArmarFachada(new CoberturaContadora(), Completo(Ayudas.Predio(superficieHa: 4.5, desmonte: 0)),
             [new Coordenada(-63.3, -17.6)],
-            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "TIT-001", TitularCi = "7845123", SuperficieHa = 5, ArchivoClave = "titulo.pdf" });
+            new Documento { Tipo = TipoDocumento.TituloPropiedad, Numero = "SPP-NAL-070167", TitularCi = "7845123", SuperficieHa = 5, ArchivoClave = "titulo.pdf" });
 
         var ubicacion = fachada.RevisarRequisitos(1).Requisitos.Single(r => r.Clave == "ubicacion");
         Assert.False(ubicacion.Cumplido);
@@ -282,14 +282,14 @@ public class PatronesEstructuralesTests
         var servicio = new ServicioPredios(predios, productores, new RepositorioMemoria<Poligono>(), documentos,
             new ControlAcceso(new UsuarioFijo()));
 
-        var predio = servicio.Crear(new PredioDto(1, "El Algarrobo", "San Julián", "Soya", 100, "TIT-001", 0, "7845123", 100, "Santa Cruz"));
+        var predio = servicio.Crear(new PredioDto(1, "El Algarrobo", "San Julián", "Soya", 100, "SPP-NAL-070167", 0, "7845123", 100, "Santa Cruz"));
         var titulo = documentos.Listar(_ => true).Single();
-        Assert.Equal(("TIT-001", "7845123", (double?)100), (titulo.Numero, titulo.TitularCi, titulo.SuperficieHa));
+        Assert.Equal(("SPP-NAL-070167", "7845123", (double?)100), (titulo.Numero, titulo.TitularCi, titulo.SuperficieHa));
 
         // Al editar el predio se actualiza el mismo documento, no se crea otro.
-        servicio.Actualizar(predio.Id, new PredioDto(1, "El Algarrobo", "San Julián", "Soya", 100, "TIT-002", 0, "7845123", 90, "Santa Cruz"));
+        servicio.Actualizar(predio.Id, new PredioDto(1, "El Algarrobo", "San Julián", "Soya", 100, "SPP-NAL-070170", 0, "7845123", 90, "Santa Cruz"));
         titulo = documentos.Listar(_ => true).Single();
-        Assert.Equal(("TIT-002", (double?)90), (titulo.Numero, titulo.SuperficieHa));
+        Assert.Equal(("SPP-NAL-070170", (double?)90), (titulo.Numero, titulo.SuperficieHa));
 
         Assert.Throws<DatosInvalidosException>(() =>
             servicio.Crear(new PredioDto(1, "Otro", "San Julián", "Soya", 10, null, 0, "7845123", 10, "Santa Cruz")));
@@ -338,12 +338,12 @@ public class PatronesEstructuralesTests
         var predio = predios.Agregar(Ayudas.Predio(1, 100));
         var servicio = new ServicioDocumentos(predios, documentos, new ControlAcceso(new UsuarioFijo()));
 
-        var titulo = servicio.Agregar(predio.Id, new DocumentoDto(TipoDocumento.TituloPropiedad, "TIT-010", "7845123", 100));
-        Assert.Equal("TIT-010", predios.Obtener(predio.Id)!.NumeroTituloInra);
+        var titulo = servicio.Agregar(predio.Id, new DocumentoDto(TipoDocumento.TituloPropiedad, "PPD-NAL-086678", "7845123", 100));
+        Assert.Equal("PPD-NAL-086678", predios.Obtener(predio.Id)!.NumeroTituloInra);
 
         // Un solo título por predio.
         Assert.Throws<DatosInvalidosException>(() =>
-            servicio.Agregar(predio.Id, new DocumentoDto(TipoDocumento.TituloPropiedad, "TIT-011", "7845123", 100)));
+            servicio.Agregar(predio.Id, new DocumentoDto(TipoDocumento.TituloPropiedad, "PPD-NAL-086679", "7845123", 100)));
 
         servicio.Eliminar(titulo.Id);
         Assert.True(predios.Obtener(predio.Id)!.NumeroTituloInra is null);

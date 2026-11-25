@@ -144,14 +144,30 @@ public class PatronesComportamientoTests
     }
 
     [Fact]
-    public void State_AprobadoEsFinalYSoloPermiteElExpediente()
+    public void State_AprobadoPermiteElExpedienteYCorregirlo_PeroNoReenviarlo()
     {
         var predio = Ayudas.Predio();
         predio.EnviarARevision(hayAlertas: false);
 
         predio.VerificarGeneracionExpediente();
-        Assert.Throws<OperacionNoPermitidaException>(predio.VerificarEdicion);
+        predio.VerificarEdicion();
         Assert.Throws<OperacionNoPermitidaException>(predio.VerificarEnvio);
+    }
+
+    [Fact]
+    public void State_AlModificarUnPredioAprobadoOConAlertasVuelveARegistrado()
+    {
+        var aprobado = Ayudas.Predio();
+        aprobado.EnviarARevision(hayAlertas: false);
+        aprobado.RegistrarModificacion();
+        Assert.Equal(EstadoExpediente.Registrado, aprobado.Estado);
+        Assert.Throws<OperacionNoPermitidaException>(aprobado.VerificarGeneracionExpediente);
+        aprobado.VerificarEnvio();
+
+        var conAlertas = Ayudas.Predio();
+        conAlertas.EnviarARevision(hayAlertas: true);
+        conAlertas.RegistrarModificacion();
+        Assert.Equal(EstadoExpediente.Registrado, conAlertas.Estado);
     }
 
     // ---------- Strategy ----------

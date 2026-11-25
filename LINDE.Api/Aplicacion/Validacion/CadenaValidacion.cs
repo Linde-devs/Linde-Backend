@@ -51,7 +51,8 @@ public abstract class ValidadorCapa
     protected abstract Task<ResultadoCapa> ValidarAsync(ContextoValidacion contexto);
 
     protected ResultadoCapa Conforme(string mensaje) => new() { Capa = Capa, Estado = EstadoCapa.Conforme, Mensaje = mensaje };
-    protected ResultadoCapa ConAlerta(string mensaje) => new() { Capa = Capa, Estado = EstadoCapa.Alerta, Mensaje = mensaje };
+    protected ResultadoCapa ConAlerta(string mensaje, PrioridadAlerta? prioridad = null) =>
+        new() { Capa = Capa, Estado = EstadoCapa.Alerta, Mensaje = mensaje, Prioridad = prioridad };
     protected ResultadoCapa Rechazado(string mensaje) => new() { Capa = Capa, Estado = EstadoCapa.Rechazado, Mensaje = mensaje };
 
     /// <summary>Ordena los validadores que entrega el contenedor y los enlaza. Devuelve el primer eslabón.</summary>

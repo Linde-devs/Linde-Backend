@@ -5,12 +5,17 @@ namespace LINDE.Api.Dominio.Estados;
 /// LINDE no tiene verificadores ni cuentas del SENASAG: nadie aprueba ni observa dentro del sistema.
 /// Un predio queda "Aprobado" solo si las cuatro capas están conformes; si hay alertas queda "Con alertas"
 /// y el productor puede corregirlo y reenviarlo, o generar su expediente con las alertas para mostrarlo.
+/// En cualquier estado se puede corregir o eliminar el predio (el productor pudo equivocarse en un dato): al
+/// modificarlo vuelve a "Registrado", porque el resultado del último envío ya no corresponde a los datos nuevos.
 /// </summary>
 public interface IEstadoPredio
 {
     EstadoExpediente Valor { get; }
     void VerificarEdicion();
     void VerificarEnvio();
+
+    /// <summary>Estado en que queda el predio después de modificar sus datos, su polígono o sus documentos.</summary>
+    EstadoExpediente Modificar();
     EstadoExpediente EnviarARevision(bool hayAlertas);
     void VerificarGeneracionExpediente();
 }
@@ -24,6 +29,7 @@ public abstract class EstadoPredioBase : IEstadoPredio
     public virtual void VerificarEnvio() => throw NoPermitido("enviar a revisión");
     public virtual EstadoExpediente EnviarARevision(bool hayAlertas) => throw NoPermitido("enviar a revisión");
     public virtual void VerificarGeneracionExpediente() => throw NoPermitido("generar el expediente de");
+    public virtual EstadoExpediente Modificar() => EstadoExpediente.Registrado;
 
     protected OperacionNoPermitidaException NoPermitido(string operacion) =>
         new($"No se puede {operacion} un predio en estado \"{Nombre}\".");
@@ -59,12 +65,16 @@ public sealed class EstadoConAlertas : EstadoPredioBase
     public override void VerificarGeneracionExpediente() { }
 }
 
-/// <summary>Las cuatro capas conformes. Es final: solo permite generar el expediente.</summary>
+/// <summary>
+/// Las cuatro capas conformes: permite generar el expediente. También se puede corregir o eliminar; al corregirlo
+/// vuelve a "Registrado" y debe enviarse de nuevo. Los expedientes ya generados quedan como estaban, con su fecha.
+/// </summary>
 public sealed class EstadoAprobado : EstadoPredioBase
 {
     public override EstadoExpediente Valor => EstadoExpediente.Aprobado;
     protected override string Nombre => "Aprobado";
 
+    public override void VerificarEdicion() { }
     public override void VerificarGeneracionExpediente() { }
 }
 
