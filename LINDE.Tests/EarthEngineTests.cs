@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using LINDE.Api.Cobertura;
+using LINDE.Api.Dominio;
 using Microsoft.Extensions.Options;
 
 namespace LINDE.Tests;
@@ -108,6 +109,94 @@ public class EarthEngineTests
 
         Assert.Equal(new DateOnly(2026, 11, 24), r.FechaImagenActual);
         Assert.Equal(62, r.BosquePorcentajeCorte, 3);
+        Assert.Contains("Filter.intersects: argumento inválido", r.Aviso);
+    }
+
+    [Fact]
+    public async Task Adapter_SiLaGeometriaSolaNoSirveReintentaConFeature()
+    {
+        var falso = new EarthEngineFalso(c => c.Contains("AggregateFeatureCollection.max") && !c.Contains("\"Feature\"")
+            ? (HttpStatusCode.BadRequest, """{"error": {"message": "Filter.intersects: rightValue debe ser un Feature"}}""")
+            : Normal(c));
+
+        var r = await Adaptador(falso).AnalizarAsync(Ayudas.Cuadrado(), new DateOnly(2020, 12, 31));
+
+        Assert.Equal(new DateOnly(2026, 11, 19), r.FechaImagenActual);
+        Assert.Null(r.Aviso);
+        Assert.Equal(4, falso.Recibidas.Count);
+    }
+
+    // ---------- RF-08: imágenes en color natural ----------
+
+    [Fact]
+    public async Task Imagen_PideComputePixelsConSentinel2PocaNubosidadYElRecuadroDelPredio()
+    {
+        var jpeg = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0 };
+        var manejador = new EarthEngineBinario(jpeg);
+
+        var imagen = await new EarthEngineAdapter(new HttpClient(manejador), Options.Create(new OpcionesCobertura()), new TokenFijo(),
+            new RelojFijo(Ahora)).ImagenAsync(Ayudas.Cuadrado(), MomentoImagen.Referencia);
+
+        Assert.True(imagen is not null);
+        Assert.True(jpeg.SequenceEqual(imagen!.Contenido));
+        Assert.Equal("Mayo a diciembre de 2020", imagen.Periodo);
+        Assert.Equal("https://earthengine.googleapis.com/v1/projects/linde-prueba/image:computePixels", manejador.Url);
+
+        var cuerpo = JsonNode.Parse(manejador.Cuerpo)!;
+        Assert.Equal("JPEG", cuerpo["fileFormat"]!.GetValue<string>());
+        Assert.Equal("EPSG:4326", cuerpo["grid"]!["crsCode"]!.GetValue<string>());
+        var texto = cuerpo.ToJsonString();
+        Assert.Contains("COPERNICUS/S2_SR_HARMONIZED", texto);
+        Assert.Contains("CLOUDY_PIXEL_PERCENTAGE", texto);
+        Assert.Contains("\"2020-05-01\"", texto);
+        Assert.Contains("Image.visualize", texto);
+
+        // El recuadro contiene al predio con margen.
+        var c = Ayudas.Cuadrado();
+        Assert.True(imagen.Limites[0] < c.Min(v => v.Lon) && imagen.Limites[2] > c.Max(v => v.Lon));
+        Assert.True(imagen.Limites[1] < c.Min(v => v.Lat) && imagen.Limites[3] > c.Max(v => v.Lat));
+    }
+
+    [Fact]
+    public void Marco_UnPuntoTieneAlMenos600MetrosYElLadoMayorEs640Pixeles()
+    {
+        var m = MarcoImagen.Calcular([new Coordenada(-63.18, -17.78)]);
+        Assert.True((m.Norte - m.Sur) * 110_574 >= 590);
+        Assert.Equal(MarcoImagen.LadoMaximo, Math.Max(m.Ancho, m.Alto));
+    }
+
+    [Fact]
+    public async Task Proxy_GuardaLasImagenesYNoLasPideDosVeces()
+    {
+        var real = new CoberturaContadora();
+        var proxy = new CoberturaCacheProxy(real, new Microsoft.Extensions.Caching.Memory.MemoryCache(
+            new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()), TimeSpan.FromDays(7));
+
+        await proxy.ImagenAsync(Ayudas.Cuadrado(), MomentoImagen.Actual);
+        await proxy.ImagenAsync(Ayudas.Cuadrado(), MomentoImagen.Actual);
+        await proxy.ImagenAsync(Ayudas.Cuadrado(), MomentoImagen.Referencia);
+
+        Assert.Equal(2, real.Imagenes);
+    }
+
+    [Fact]
+    public async Task Simulado_NoTieneImagenes()
+    {
+        var simulado = new CoberturaSimulada(Options.Create(new OpcionesCobertura { RetardoSimuladoMs = 0 }));
+        Assert.Null(await simulado.ImagenAsync(Ayudas.Cuadrado(), MomentoImagen.Actual));
+    }
+
+    private class EarthEngineBinario(byte[] respuesta) : HttpMessageHandler
+    {
+        public string Url { get; private set; } = "";
+        public string Cuerpo { get; private set; } = "";
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Url = request.RequestUri!.ToString();
+            Cuerpo = await request.Content!.ReadAsStringAsync(ct);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(respuesta) };
+        }
     }
 
     [Fact]

@@ -43,6 +43,33 @@ Pruebas automáticas (una o más por patrón, y las del sprint 2):
 dotnet test
 ```
 
+## Estructura del proyecto
+
+`LINDE.Api` está ordenado en cuatro capas. Cada capa agrupa sus módulos en subcarpetas:
+
+```
+LINDE.Api/
+├── Api/                 Lo que recibe las peticiones HTTP
+│   ├── Controllers/     Un controlador por archivo
+│   └── Contratos/       DTOs: lo que entra y sale de la API
+├── Aplicacion/          La lógica del sistema (casos de uso)
+│   ├── Servicios/       Productores, predios, polígonos, documentos, inspecciones, capas
+│   ├── Validacion/      Cadena de validación, estrategias de la Ley 741, zonas y requisitos
+│   ├── Geometria/       Revisión geométrica y límite de Bolivia
+│   ├── Expedientes/     Builder del expediente y su servicio
+│   ├── Auditoria/       Bitácora
+│   └── Configuracion/   Parámetros del sistema
+├── Dominio/             Entidades, estados del predio, enumeraciones y excepciones
+└── Infraestructura/     Lo que habla con algo externo
+    ├── Datos/           DbContext, configuraciones de tablas, repositorios y migraciones
+    ├── Cobertura/       Google Earth Engine (Adapter y Proxy)
+    ├── Importacion/     Lectura de archivos KML y GeoJSON (Factory Method)
+    └── Autenticacion/   JWT y control de acceso
+```
+
+Los namespaces no incluyen la capa (por ejemplo, `Aplicacion/Validacion` usa `LINDE.Api.Validacion`). Así se movieron
+las carpetas sin cambiar el código. `LINDE.Api.csproj.DotSettings` le indica a Rider que no marque esa diferencia.
+
 ## Autenticación y roles (CU-01, RF-11, RNF-03)
 
 - `POST /api/auth/registro` (registro de productor) y `POST /api/auth/login` son públicos. El login devuelve un token JWT con el id, el nombre, el correo, el rol y, si es productor, su id de productor.
@@ -72,22 +99,22 @@ Permisos por rol:
 | Consultar un expediente por su código (`GET /api/consulta/{codigo}`, CI enmascarado) | Público |
 | Modificar parámetros, ver la bitácora, crear administradores | Administrador |
 
-Un productor que intenta abrir el predio de otro recibe 403 "Acceso denegado" (`Autenticacion/ControlAcceso.cs`).
+Un productor que intenta abrir el predio de otro recibe 403 "Acceso denegado" (`Infraestructura/Autenticacion/ControlAcceso.cs`).
 
 ## Sprint 2
 
-- **RF-01 Registro de productor** (`Servicios/ServicioProductores.cs`): nombre, CI o NIT, RUNPA opcional, teléfono, municipio y cuenta de acceso. Se asigna un código único (`PRD-000001`). Un CI o NIT repetido se rechaza con "Productor ya registrado".
-- **RF-02 Registro de predio** (`Servicios/ServicioPredios.cs`): nombre, municipio, cultivo, superficie declarada y número de título INRA. Sin productor o sin superficie no se guarda; la superficie acepta 2 decimales.
-- **RF-03 Carga GeoJSON o KML** (`Geometria/RevisionGeometrica.cs`): la geometría se revisa al cargarla y se rechaza indicando el tipo de error (anillo no cerrado, autointersección, menos de 4 vértices, vértices duplicados o coordenadas fuera de WGS84). El lote de 20 archivos de prueba está en `LINDE.Tests/Archivos` y lo verifica `LoteArchivosTests`.
+- **RF-01 Registro de productor** (`Aplicacion/Servicios/ServicioProductores.cs`): nombre, CI o NIT, RUNPA opcional, teléfono, municipio y cuenta de acceso. Se asigna un código único (`PRD-000001`). Un CI o NIT repetido se rechaza con "Productor ya registrado".
+- **RF-02 Registro de predio** (`Aplicacion/Servicios/ServicioPredios.cs`): nombre, municipio, cultivo, superficie declarada y número de título INRA. Sin productor o sin superficie no se guarda; la superficie acepta 2 decimales.
+- **RF-03 Carga GeoJSON o KML** (`Aplicacion/Geometria/RevisionGeometrica.cs`): la geometría se revisa al cargarla y se rechaza indicando el tipo de error (anillo no cerrado, autointersección, menos de 4 vértices, vértices duplicados o coordenadas fuera de WGS84). El lote de 20 archivos de prueba está en `LINDE.Tests/Archivos` y lo verifica `LoteArchivosTests`.
 - **RF-05 Polígono obligatorio sobre 4 ha**: un punto se guarda con 6 decimales; al enviar, un predio de más de 4 ha con un solo punto se rechaza.
 - **RF-06 Superposición**: al enviar, bloquea si el área superpuesta supera 100 m² o el 0,1 % y muestra el área y el predio. La búsqueda usa `ST_Intersects` con índice espacial en PostGIS.
 
 ## Base de datos (PostgreSQL + PostGIS)
 
-- `Datos/LindeDbContext.cs`: contexto de EF Core y el mapeo de cada tabla con Fluent API (claves foráneas, índices únicos de CI, correo y código, restricciones CHECK de superficie).
-- `Datos/RepositorioEf.cs`: implementación de `IRepositorio<T>` con EF Core. Los servicios no cambiaron: reciben la interfaz.
-- `Datos/RepositorioMemoria` (en `Repositorios.cs`): la versión en listas, que usan las pruebas automáticas.
-- `Datos/Migraciones/`: migración `Inicial` (10 tablas). Para un cambio en el modelo: `dotnet ef migrations add NombreDelCambio --output-dir Datos/Migraciones`.
+- `Infraestructura/Datos/LindeDbContext.cs`: contexto de EF Core. El mapeo de cada tabla con Fluent API está en `Infraestructura/Datos/Configuraciones/`, un archivo por tabla (claves foráneas, índices únicos de CI, correo y código, restricciones CHECK de superficie).
+- `Infraestructura/Datos/RepositorioEf.cs`: implementación de `IRepositorio<T>` con EF Core. Los servicios no cambiaron: reciben la interfaz.
+- `Infraestructura/Datos/RepositorioMemoria` (en `Repositorios.cs`): la versión en listas, que usan las pruebas automáticas.
+- `Infraestructura/Datos/Migraciones/`: migración `Inicial` (10 tablas). Para un cambio en el modelo: `dotnet ef migrations add NombreDelCambio` (EF la guarda junto a las demás, en esta misma carpeta).
 - **Polígonos:** columna `Geometria` de tipo `geometry(Geometry, 4326)` (WGS84) con índice espacial GiST. En C# el polígono sigue siendo una lista de vértices; la propiedad `Poligono.Geometria` la convierte al guardar y al leer.
 - **Superposición (RF-06):** la capa geométrica pide a la base solo los polígonos que tocan al del predio; EF Core lo traduce a `ST_Intersects` y usa el índice. El área superpuesta se calcula en metros con la proyección de área equivalente (RNF-09).
 - Resultados de validación, expedientes y parámetros guardan sus listas en columnas `jsonb`.
@@ -97,18 +124,18 @@ Un productor que intenta abrir el predio de otro recibe 403 "Acceso denegado" (`
 
 | Tipo | Patrón | Archivo | Caso de uso |
 |---|---|---|---|
-| Creacional | Factory Method (lectores GeoJSON y KML) | `Importacion/LectoresPoligono.cs` | CU-04 |
+| Creacional | Factory Method (lectores GeoJSON y KML) | `Infraestructura/Importacion/LectoresPoligono.cs` | CU-04 |
 | Creacional | Factory Method por contenedor (validadores) | `Infraestructura/RegistroServicios.cs` | CU-07 |
-| Creacional | Builder (expediente) | `Expedientes/Expedientes.cs` | CU-10 |
-| Creacional | Prototype (versiones del polígono) | `Dominio/Poligono.cs`, `Servicios/ServicioPoligonos.cs` | CU-04 |
-| Creacional | Singleton por contenedor (parámetros) | `Configuracion/ServicioParametros.cs` | CU-12 |
-| Estructural | Adapter (Google Earth Engine) | `Cobertura/ProveedoresCobertura.cs` | CU-07 |
-| Estructural | Facade (validación de predios) | `Validacion/ServicioValidacionPredios.cs` | CU-06, CU-07 |
-| Estructural | Decorator (bitácora de auditoría) | `Servicios/*Auditado`, `Configuracion/ServicioParametros.cs` | CU-03, 04, 05, 12 |
-| Estructural | Proxy (caché del análisis satelital) | `Cobertura/ProveedoresCobertura.cs` | CU-07 |
-| Comportamiento | Chain of Responsibility (cuatro capas) | `Validacion/CadenaValidacion.cs`, `Validacion/Validadores.cs` | CU-07 |
+| Creacional | Builder (expediente) | `Aplicacion/Expedientes/ExpedienteBuilder.cs` | CU-10 |
+| Creacional | Prototype (versiones del polígono) | `Dominio/Poligono.cs`, `Aplicacion/Servicios/ServicioPoligonos.cs` | CU-04 |
+| Creacional | Singleton por contenedor (parámetros) | `Aplicacion/Configuracion/ServicioParametros.cs` | CU-12 |
+| Estructural | Adapter (Google Earth Engine) | `Infraestructura/Cobertura/EarthEngineAdapter.cs` | CU-07 |
+| Estructural | Facade (validación de predios) | `Aplicacion/Validacion/ServicioValidacionPredios.cs` | CU-06, CU-07 |
+| Estructural | Decorator (bitácora de auditoría) | `Aplicacion/Servicios/*Auditado`, `Aplicacion/Configuracion/ServicioParametros.cs` | CU-03, 04, 05, 12 |
+| Estructural | Proxy (caché del análisis satelital) | `Infraestructura/Cobertura/CoberturaCacheProxy.cs` | CU-07 |
+| Comportamiento | Chain of Responsibility (cuatro capas) | `Aplicacion/Validacion/CadenaValidacion.cs`, `Aplicacion/Validacion/Validadores.cs` | CU-07 |
 | Comportamiento | State (ciclo de vida del predio) | `Dominio/Estados/EstadosPredio.cs`, `Dominio/Predio.cs` | CU-03, 06, 09, 10 |
-| Comportamiento | Strategy (Ley 741) | `Validacion/UsoSuelo/EstrategiasUsoSuelo.cs` | CU-07 |
+| Comportamiento | Strategy (Ley 741) | `Aplicacion/Validacion/UsoSuelo/EstrategiasUsoSuelo.cs` | CU-07 |
 
 Abstract Factory no se implementa: el documento de patrones creacionales lo deja diferido hasta que exista la integración con INRA y ABT.
 
@@ -128,7 +155,7 @@ Abstract Factory no se implementa: el documento de patrones creacionales lo deja
 ## Cambio de modelo: sin roles de verificador ni SENASAG
 
 - **Estados del predio** (patrón State, `Dominio/Estados/EstadosPredio.cs`): Registrado, Con alertas y Aprobado. Al enviar, si alguna capa genera alertas el predio queda "Con alertas"; solo queda "Aprobado" si las cuatro capas están conformes. Nadie lo aprueba a mano: un predio con alertas se corrige y se vuelve a enviar.
-- **Expediente** (`Expedientes/Expedientes.cs`): se genera para predios aprobados y para predios con alertas. Indica su estado (Conforme o Con alertas), lista las alertas pendientes y lleva la leyenda de que LINDE no certifica.
+- **Expediente** (`Aplicacion/Expedientes/`): se genera para predios aprobados y para predios con alertas. Indica su estado (Conforme o Con alertas), lista las alertas pendientes y lleva la leyenda de que LINDE no certifica.
 - **Consulta pública** (`GET /api/consulta/{codigo}`): sin token y de solo lectura, con el CI del productor enmascarado.
 - **Alertas** (`GET /api/alertas`): el productor ve las de sus predios y el administrador, todas, ordenadas por prioridad.
 - **Migración `SinRolesExternos`**: borra las cuentas de verificador y SENASAG, pasa los predios "En revisión" u "Observado" a "Con alertas" y agrega el estado y las alertas al expediente. Se aplica sola al arrancar en Development.

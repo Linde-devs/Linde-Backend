@@ -193,6 +193,16 @@ Content-Type: application/json
 GET {{api}}/predios/1/inspecciones
 Authorization: Bearer {{token}}
 
+### 9d. RF-08: imágenes satelitales del predio en 2020 y ahora (Sentinel-2). Con el proveedor "Simulado" responde
+### "disponible": false; con Earth Engine trae las dos imágenes en JPEG (data URL) y el recuadro que cubren.
+GET {{api}}/predios/1/imagenes-satelitales
+Authorization: Bearer {{token}}
+
+### 9e. RF-07: zonas del predio fuera del título del INRA o de las autorizaciones de la ABT (MultiPolygon GeoJSON),
+### con las hectáreas y el porcentaje. Solo se calculan si el administrador cargó las capas (pasos 1b a 1d).
+GET {{api}}/predios/1/zonas-capas
+Authorization: Bearer {{token}}
+
 ### 10. Generar el expediente (CU-10): Builder. Funciona con el predio aprobado o con alertas; el expediente indica su estado.
 POST {{api}}/expedientes/predio/1
 Authorization: Bearer {{token}}

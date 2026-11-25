@@ -99,6 +99,8 @@ public static class RegistroServicios
         services.AddHttpClient(nameof(TokenCuentaServicio));
         services.AddSingleton<ITokenEarthEngine, TokenCuentaServicio>();
         services.AddSingleton<CoberturaSimulada>();
+        services.AddScoped<ServicioImagenesPredio>();
+        services.AddScoped<ServicioZonasCapas>();
         services.AddScoped<IProveedorCobertura>(sp =>
         {
             var opciones = sp.GetRequiredService<IOptions<OpcionesCobertura>>().Value;

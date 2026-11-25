@@ -55,4 +55,12 @@ public class CoberturaContadora(double bosqueCorte = 60, double bosqueActual = 5
         Llamadas++;
         return Task.FromResult(new ResultadoCobertura(bosqueCorte, bosqueActual, new DateOnly(2026, 11, 1), "Prueba"));
     }
+
+    public int Imagenes { get; private set; }
+
+    public Task<ImagenSatelital?> ImagenAsync(IReadOnlyList<Coordenada> vertices, MomentoImagen momento, CancellationToken ct = default)
+    {
+        Imagenes++;
+        return Task.FromResult<ImagenSatelital?>(new ImagenSatelital([0xFF, 0xD8, 0xFF], "image/jpeg", momento.ToString(), [0, 0, 1, 1], "Prueba"));
+    }
 }

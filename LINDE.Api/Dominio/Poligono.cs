@@ -26,6 +26,12 @@ public class Poligono : IEntidad, IPrototipo<Poligono>
     public string Motivo { get; set; } = "";
     public bool Vigente { get; set; } = true;
 
+    /// <summary>
+    /// RF-04. Precisión en metros que informó el GPS para cada vértice, en el mismo orden que Vertices. Un null es un
+    /// vértice marcado a mano o corregido; la lista queda vacía si el polígono vino de un archivo.
+    /// </summary>
+    public List<double?> PrecisionesM { get; set; } = new();
+
     public bool EsPunto => Vertices.Count == 1;
 
     /// <summary>
@@ -50,6 +56,7 @@ public class Poligono : IEntidad, IPrototipo<Poligono>
         PredioId = PredioId,
         Version = Version,
         Vertices = new List<Coordenada>(Vertices),
+        PrecisionesM = new List<double?>(PrecisionesM),
         Fecha = Fecha,
         Autor = Autor,
         Motivo = Motivo,
