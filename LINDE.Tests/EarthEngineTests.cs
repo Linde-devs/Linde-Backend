@@ -86,6 +86,12 @@ public class EarthEngineTests
         Assert.Contains("\"2026-11-25\"", texto);   // el filtro termina al día siguiente para incluir hoy
         Assert.Contains("\"label_mode\"", texto);
 
+        // El servidor no acepta números sueltos donde espera una imagen: unmask(0) y eq(1) van como Image.constant.
+        var referencia = falso.Recibidas.Single(x => x.Cuerpo.Contains("JRC/GFC2020/V3")).Cuerpo;
+        var unmask = JsonNode.Parse(referencia)!["expression"]!["values"]!["0"]!["functionInvocationValue"]!["arguments"]!["image"]!["functionInvocationValue"]!;
+        Assert.Equal("Image.unmask", unmask["functionName"]!.GetValue<string>());
+        Assert.Equal("Image.constant", unmask["arguments"]!["value"]!["functionInvocationValue"]!["functionName"]!.GetValue<string>());
+
         var anillo = raiz["arguments"]!["geometry"]!["functionInvocationValue"]!["arguments"]!["coordinates"]!["constantValue"]![0]!.AsArray();
         Assert.Equal(anillo[0]!.ToJsonString(), anillo[^1]!.ToJsonString());
         Assert.Equal(Ayudas.Cuadrado()[0].Lon, anillo[0]![0]!.GetValue<double>());

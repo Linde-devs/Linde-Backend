@@ -59,18 +59,21 @@ public static class ExpresionesEarthEngine
     private static JsonObject Seleccionar(JsonObject imagen, string banda) =>
         Funcion("Image.select", ("input", imagen), ("bandSelectors", Constante(new JsonArray(banda))));
 
+    /// <summary>ee.Image.constant(valor): el servidor exige una imagen donde Python acepta un número suelto.</summary>
+    private static JsonObject ImagenConstante(double valor) => Funcion("Image.constant", ("value", Constante(valor)));
+
     /// <summary>ee.Image(id).select(banda).unmask(0): el mapa solo marca el bosque (1); lo demás pasa a 0.</summary>
     public static JsonObject FraccionReferencia(string imagen, string banda, JsonObject geometria, int escala) =>
         Media(Funcion("Image.unmask",
                 ("input", Seleccionar(Funcion("Image.load", ("id", Constante(imagen))), banda)),
-                ("value", Constante(0))),
+                ("value", ImagenConstante(0))),
             geometria, escala);
 
     /// <summary>recientes.mode().select('label_mode').eq(1): clase más frecuente de cada píxel y si es "árboles".</summary>
     public static JsonObject FraccionArbolesActual(JsonObject recientes, JsonObject geometria, int escala) =>
         Media(Funcion("Image.eq",
                 ("image1", Seleccionar(Funcion("ImageCollection.reduce", ("collection", recientes), ("reducer", Funcion("Reducer.mode"))), "label_mode")),
-                ("image2", Funcion("Image.constant", ("value", Constante(1))))),
+                ("image2", ImagenConstante(1))),
             geometria, escala);
 
     /// <summary>recientes.filterBounds(geometría).aggregate_max('system:time_start')</summary>
