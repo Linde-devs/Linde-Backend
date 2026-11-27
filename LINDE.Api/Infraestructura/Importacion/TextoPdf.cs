@@ -6,7 +6,8 @@ namespace LINDE.Api.Importacion;
 
 /// <summary>
 /// Saca el texto de un PDF generado digitalmente, sin bibliotecas externas: recorre los "stream" del archivo,
-/// descomprime los que usan FlateDecode (el caso común) y junta las cadenas que se escriben con Tj y TJ.
+/// aplica sus filtros en orden (FlateDecode, el caso común, y ASCII85Decode o ASCIIHexDecode, que usan algunos generadores
+/// como ReportLab) y junta las cadenas que se escriben con Tj y TJ.
 /// No hace reconocimiento de caracteres: un PDF escaneado (solo imágenes) o con fuentes de dos bytes devuelve poco o
 /// nada legible. Quien lo usa decide con <see cref="EsLegible"/> si el texto sirve para comparar.
 /// </summary>
@@ -25,7 +26,7 @@ public static partial class TextoPdf
 
             var diccionario = latin[Math.Max(0, latin.LastIndexOf("<<", m.Index, StringComparison.Ordinal))..m.Index];
             var datos = pdf.AsSpan(inicio, fin - inicio).ToArray();
-            var contenido = diccionario.Contains("/FlateDecode") ? Descomprimir(datos) : datos;
+            var contenido = AplicarFiltros(datos, diccionario);
             if (contenido is not null)
                 Cadenas(Encoding.Latin1.GetString(contenido), texto);
         }
@@ -39,6 +40,66 @@ public static partial class TextoPdf
         var alfanumericos = texto.Count(char.IsLetterOrDigit);
         var imprimibles = texto.Count(c => !char.IsControl(c) && c < 0x250);
         return alfanumericos >= 30 && imprimibles >= texto.Length * 0.85;
+    }
+
+    /// <summary>Aplica los filtros del stream en el orden de su /Filter. Uno que no se conoce deja el stream sin leer.</summary>
+    private static byte[]? AplicarFiltros(byte[] datos, string diccionario)
+    {
+        var filtro = Filtros().Match(diccionario);
+        if (!filtro.Success) return datos;
+
+        byte[]? actual = datos;
+        foreach (Match nombre in NombreFiltro().Matches(filtro.Groups[1].Value))
+        {
+            if (actual is null) return null;
+            actual = nombre.Groups[1].Value switch
+            {
+                "FlateDecode" or "Fl" => Descomprimir(actual),
+                "ASCII85Decode" or "A85" => Ascii85(actual),
+                "ASCIIHexDecode" or "AHx" => AsciiHex(actual),
+                _ => null
+            };
+        }
+        return actual;
+    }
+
+    /// <summary>ASCII85: grupos de 5 caracteres entre '!' y 'u' que valen 4 bytes; 'z' vale 4 ceros; termina en "~>".</summary>
+    private static byte[]? Ascii85(byte[] datos)
+    {
+        var salida = new MemoryStream();
+        var grupo = new int[5];
+        var n = 0;
+        foreach (var b in datos)
+        {
+            if (b == '~') break;
+            if (b <= ' ') continue;
+            if (b == 'z' && n == 0) { salida.Write(new byte[4]); continue; }
+            if (b < '!' || b > 'u') return null;
+            grupo[n++] = b - '!';
+            if (n == 5) { Escribir(salida, grupo, 4); n = 0; }
+        }
+        if (n > 1)
+        {
+            for (var i = n; i < 5; i++) grupo[i] = 'u' - '!';
+            Escribir(salida, grupo, n - 1);
+        }
+        return salida.ToArray();
+
+        static void Escribir(Stream destino, int[] g, int cantidad)
+        {
+            long valor = 0;
+            foreach (var d in g) valor = valor * 85 + d;
+            for (var i = 0; i < cantidad; i++) destino.WriteByte((byte)(valor >> (24 - 8 * i)));
+        }
+    }
+
+    private static byte[] AsciiHex(byte[] datos)
+    {
+        var hex = Encoding.Latin1.GetString(datos).TakeWhile(c => c != '>').Where(Uri.IsHexDigit).ToList();
+        if (hex.Count % 2 == 1) hex.Add('0');
+        var salida = new byte[hex.Count / 2];
+        for (var i = 0; i < salida.Length; i++) salida[i] = Convert.ToByte(new string([hex[2 * i], hex[2 * i + 1]]), 16);
+        return salida;
     }
 
     private static byte[]? Descomprimir(byte[] datos)
@@ -97,6 +158,12 @@ public static partial class TextoPdf
         }
         texto.Append(' ');
     }
+
+    [GeneratedRegex(@"/Filter\s*(\[[^\]]*\]|/\w+)")]
+    private static partial Regex Filtros();
+
+    [GeneratedRegex(@"/(\w+)")]
+    private static partial Regex NombreFiltro();
 
     [GeneratedRegex(@"stream\r?\n")]
     private static partial Regex InicioStream();

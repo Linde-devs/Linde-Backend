@@ -40,8 +40,12 @@ public static class ConfiguracionAutenticacion
                     ValidAudience = opciones.Audiencia,
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = opciones.ClaveFirma(),
+                    RequireSignedTokens = true,
+                    ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
+                    RequireExpirationTime = true,
                     ValidateLifetime = true,
-                    ClockSkew = TimeSpan.FromMinutes(1),
+                    // Sin margen: un token vencido se rechaza en el segundo en que vence.
+                    ClockSkew = TimeSpan.Zero,
                     NameClaimType = Claims.Nombre,
                     RoleClaimType = Claims.Rol
                 };

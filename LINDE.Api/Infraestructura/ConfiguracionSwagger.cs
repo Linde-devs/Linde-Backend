@@ -9,7 +9,7 @@ namespace LINDE.Api.Infraestructura;
 /// </summary>
 public static class ConfiguracionSwagger
 {
-    private const string Esquema = "Bearer";
+    public const string Esquema = "Bearer";
 
     public static IServiceCollection AgregarSwagger(this IServiceCollection services)
     {
@@ -32,10 +32,8 @@ public static class ConfiguracionSwagger
                 BearerFormat = "JWT",
                 Description = "Token JWT que devuelve POST /api/auth/login."
             });
-            o.AddSecurityRequirement(documento => new OpenApiSecurityRequirement
-            {
-                [new OpenApiSecuritySchemeReference(Esquema, documento)] = []
-            });
+            // El candado solo en los endpoints que piden sesión; login, registro y consulta pública quedan libres.
+            o.OperationFilter<SwaggerJwtOperationFilter>();
 
             // Los comentarios /// del código aparecen como descripción de cada endpoint y de cada campo.
             var xml = Path.Combine(AppContext.BaseDirectory, $"{Assembly.GetExecutingAssembly().GetName().Name}.xml");

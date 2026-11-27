@@ -26,12 +26,15 @@ public class GeneradorTokenJwt(IOptions<OpcionesJwt> opciones) : IGeneradorToken
     public RespuestaLogin Generar(Usuario usuario)
     {
         var config = opciones.Value;
-        var expira = DateTime.UtcNow.AddMinutes(config.MinutosExpiracion);
+        var ahora = DateTime.UtcNow;
+        var expira = ahora.AddMinutes(config.MinutosExpiracion);
 
         var descriptor = new SecurityTokenDescriptor
         {
             Issuer = config.Emisor,
             Audience = config.Audiencia,
+            IssuedAt = ahora,
+            NotBefore = ahora,
             Expires = expira,
             SigningCredentials = new SigningCredentials(config.ClaveFirma(), SecurityAlgorithms.HmacSha256),
             Subject = new ClaimsIdentity(Afirmaciones(usuario))
@@ -43,6 +46,8 @@ public class GeneradorTokenJwt(IOptions<OpcionesJwt> opciones) : IGeneradorToken
     private static IEnumerable<Claim> Afirmaciones(Usuario usuario)
     {
         yield return new Claim(Claims.Id, usuario.Id.ToString());
+        // Identificador único de cada token emitido.
+        yield return new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString());
         yield return new Claim(Claims.Nombre, $"{usuario.Nombre} {usuario.Apellido}");
         yield return new Claim(Claims.Correo, usuario.Correo);
         yield return new Claim(Claims.Rol, usuario.Rol.ToString());

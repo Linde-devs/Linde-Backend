@@ -31,7 +31,13 @@ public class AuthController(ServicioAutenticacion servicio, ServicioProductores 
 
     [HttpPost("login")]
     [AllowAnonymous]
-    public RespuestaLogin IniciarSesion(LoginDto dto) => servicio.IniciarSesion(dto);
+    public RespuestaLogin IniciarSesion(LoginDto dto)
+    {
+        var respuesta = servicio.IniciarSesion(dto);
+        // El token no debe quedar guardado en cachés del navegador ni de intermediarios.
+        Response.Headers.CacheControl = "no-store";
+        return respuesta;
+    }
 
     /// <summary>El frontend lo usa al recargar la página para recuperar la sesión a partir del token.</summary>
     [HttpGet("yo")]
