@@ -7,6 +7,9 @@
     <RootNamespace>LINDE.Api</RootNamespace>
     <!-- La contraseña de PostgreSQL va en dotnet user-secrets, fuera del repositorio. -->
     <UserSecretsId>linde-api-7c1f3a52-4d8e-4b6a-9e21-5f0d2b8c6a90</UserSecretsId>
+    <!-- Los comentarios /// de los controladores y DTOs se muestran en Swagger. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1572;CS1573;CS1574;CS1587</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +19,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="NetTopologySuite" Version="2.6.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.3.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="10.0.3" />
   </ItemGroup>

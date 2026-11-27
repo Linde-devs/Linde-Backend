@@ -165,7 +165,8 @@ Authorization: Bearer {{token}}
 GET {{api}}/alertas
 Authorization: Bearer {{token}}
 
-### 8. Si el paso 6 dejó el predio "Aprobado", editarlo se rechaza (409). Si quedó "Con alertas", se puede corregir y reenviar.
+### 8. Corregir el predio después del envío: se permite aunque esté "Aprobado" o "Con alertas". Si cambia algún dato,
+### vuelve a "Registrado" y hay que enviarlo de nuevo (paso 6). Reenviar uno aprobado sin cambios responde 409.
 PUT {{api}}/predios/1
 Content-Type: application/json
 Authorization: Bearer {{token}}

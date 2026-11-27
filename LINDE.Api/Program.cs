@@ -10,6 +10,7 @@ builder.Services
 
 builder.Services.AgregarLinde(builder.Configuration);
 builder.Services.AgregarAutenticacionJwt(builder.Configuration);
+builder.Services.AgregarSwagger();
 
 builder.Services.AddCors(o => o.AddPolicy("Frontend", politica => politica
     .WithOrigins(builder.Configuration.GetSection("Frontend:Origenes").Get<string[]>() ?? ["http://localhost:5173"])
@@ -22,6 +23,10 @@ var app = builder.Build();
 // CuentasIniciales: el administrador inicial.
 app.AplicarMigraciones();
 app.CrearCuentasIniciales();
+
+// Swagger: documentación y pruebas de la API en http://localhost:5080/swagger (solo en desarrollo).
+if (app.Environment.IsDevelopment())
+    app.UsarSwagger();
 
 app.UseMiddleware<ManejoErrores>();
 app.UseCors("Frontend");
